@@ -1,0 +1,8 @@
+// Debug Configuration
+//
+// This file includes Secrets.xcconfig which contains sensitive API keys.
+// Make sure Secrets.xcconfig exists before building.
+
+#include "Secrets.xcconfig"
+
+// Debug-specific settings can be added here
