@@ -1,4 +1,4 @@
-# App Store Readiness Checklist — SeenIt
+# App Store Readiness Checklist — WatchVault
 
 Use this checklist before submitting to the App Store. Items marked **DONE** are already addressed in the project; **TODO** items require your action.
 
@@ -15,11 +15,11 @@ Use this checklist before submitting to the App Store. Items marked **DONE** are
 ### 2. Deployment target — **TODO**
 - **Current:** `IPHONEOS_DEPLOYMENT_TARGET = 26.0`
 - **Issue:** iOS 26 may not be generally released yet. App Store builds must target a released OS.
-- **Action:** In Xcode → Project → **SeenIt** target → **General** → **Minimum Deployments**, set to a released version (e.g. **iOS 17.0** or **18.0**) for maximum compatibility, unless you intend to ship only for the latest beta.
+- **Action:** In Xcode → Project → **WatchVault** target → **General** → **Minimum Deployments**, set to a released version (e.g. **iOS 17.0** or **18.0**) for maximum compatibility, unless you intend to ship only for the latest beta.
 
 ### 3. API token for Archive — **TODO**
 - **Status:** Release builds use `Secrets.xcconfig` for `TMDB_API_TOKEN`.
-- **Action:** Before **Product → Archive**, ensure `SeenIt/Config/Secrets.xcconfig` exists (copy from `Secrets.xcconfig.template`) and contains a valid TMDB API token. Without it, the app will crash at launch in production.
+- **Action:** Before **Product → Archive**, ensure `WatchVault/Config/Secrets.xcconfig` exists (copy from `Secrets.xcconfig.template`) and contains a valid TMDB API token. Without it, the app will crash at launch in production.
 - **Note:** Do not commit `Secrets.xcconfig`; it is gitignored.
 
 ---
@@ -29,7 +29,7 @@ Use this checklist before submitting to the App Store. Items marked **DONE** are
 - **Export compliance:** `ITSAppUsesNonExemptEncryption` is set to `NO` in Info.plist (app uses only standard HTTPS; no custom crypto).
 - **TMDB attribution:** Shown in Settings (“Powered by TMDB” and disclaimer).
 - **Launch screen:** `UILaunchScreen` with `LaunchBackground` color is configured.
-- **Bundle ID:** `com.mitsheth.SeenIt`.
+- **Bundle ID:** `com.mitsheth.WatchVault`.
 - **Version:** Marketing 1.0, Build 1.
 - **Debug logging:** `print()` in production code paths wrapped in `#if DEBUG` so they are not shipped.
 

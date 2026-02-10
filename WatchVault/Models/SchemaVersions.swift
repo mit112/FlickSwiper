@@ -3,7 +3,7 @@ import SwiftData
 // MARK: - Schema Versioning
 
 /// V1: Initial schema at launch
-enum SeenItSchemaV1: VersionedSchema {
+enum WatchVaultSchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
     
     static var models: [any PersistentModel.Type] {
@@ -13,7 +13,7 @@ enum SeenItSchemaV1: VersionedSchema {
 
 /// V2: Added personalRating, genreIDsString, sourcePlatform to SwipedItem;
 ///     Added UserList and ListEntry models for custom lists
-enum SeenItSchemaV2: VersionedSchema {
+enum WatchVaultSchemaV2: VersionedSchema {
     static var versionIdentifier = Schema.Version(2, 0, 0)
     
     static var models: [any PersistentModel.Type] {
@@ -24,13 +24,13 @@ enum SeenItSchemaV2: VersionedSchema {
 // MARK: - Migration Plan
 
 /// Migration plan for handling schema changes across app updates
-enum SeenItMigrationPlan: SchemaMigrationPlan {
+enum WatchVaultMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SeenItSchemaV1.self, SeenItSchemaV2.self]
+        [WatchVaultSchemaV1.self, WatchVaultSchemaV2.self]
     }
     
     static var stages: [MigrationStage] {
-        [.lightweight(fromVersion: SeenItSchemaV1.self,
-                      toVersion: SeenItSchemaV2.self)]
+        [.lightweight(fromVersion: WatchVaultSchemaV1.self,
+                      toVersion: WatchVaultSchemaV2.self)]
     }
 }

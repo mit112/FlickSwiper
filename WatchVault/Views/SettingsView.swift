@@ -130,7 +130,7 @@ struct SettingsView: View {
                 
                 // MARK: - Support Section
                 Section {
-                    Link(destination: URL(string: "https://mit112.github.io/SeenIt/")!) {
+                    Link(destination: URL(string: "https://mit112.github.io/WatchVault/")!) {
                         HStack {
                             Image(systemName: "hand.raised.fill")
                                 .foregroundStyle(.blue)

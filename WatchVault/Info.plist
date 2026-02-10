@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>SeenIt</string>
+	<string>WatchVault</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>TMDB_API_TOKEN</key>

@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "CCFA431B2F18030C00F0943B"
-               BuildableName = "SeenIt.app"
-               BlueprintName = "SeenIt"
-               ReferencedContainer = "container:SeenIt.xcodeproj">
+               BuildableName = "WatchVault.app"
+               BlueprintName = "WatchVault"
+               ReferencedContainer = "container:WatchVault.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CCFA431B2F18030C00F0943B"
-            BuildableName = "SeenIt.app"
-            BlueprintName = "SeenIt"
-            ReferencedContainer = "container:SeenIt.xcodeproj">
+            BuildableName = "WatchVault.app"
+            BlueprintName = "WatchVault"
+            ReferencedContainer = "container:WatchVault.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CCFA431B2F18030C00F0943B"
-            BuildableName = "SeenIt.app"
-            BlueprintName = "SeenIt"
-            ReferencedContainer = "container:SeenIt.xcodeproj">
+            BuildableName = "WatchVault.app"
+            BlueprintName = "WatchVault"
+            ReferencedContainer = "container:WatchVault.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

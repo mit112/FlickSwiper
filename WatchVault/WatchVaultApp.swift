@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct SeenItApp: App {
+struct WatchVaultApp: App {
     
     init() {
         // Configure URL cache for poster images
@@ -21,7 +21,7 @@ struct SeenItApp: App {
         do {
             return try ModelContainer(
                 for: schema,
-                migrationPlan: SeenItMigrationPlan.self,
+                migrationPlan: WatchVaultMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
         } catch {
