@@ -179,7 +179,9 @@ final class SwipeViewModel {
                 self.swipedIDs = Set(swipedItems.map { $0.uniqueID })
             }
         } catch {
+            #if DEBUG
             print("Error loading swiped IDs: \(error)")
+            #endif
         }
     }
     
@@ -278,7 +280,9 @@ final class SwipeViewModel {
         do {
             try context.save()
         } catch {
+            #if DEBUG
             print("Error saving swipe right: \(error)")
+            #endif
         }
         
         // Remove from queue
@@ -312,7 +316,9 @@ final class SwipeViewModel {
         do {
             try context.save()
         } catch {
+            #if DEBUG
             print("Error saving swipe left: \(error)")
+            #endif
         }
         
         // Remove from queue
@@ -356,7 +362,9 @@ final class SwipeViewModel {
             HapticManager.undo()
             
         } catch {
+            #if DEBUG
             print("Error undoing swipe: \(error)")
+            #endif
         }
     }
     
@@ -468,7 +476,9 @@ final class SwipeViewModel {
             swipedIDs.removeAll()
             Task { await resetAndLoadContent() }
         } catch {
+            #if DEBUG
             print("Error resetting swiped items: \(error)")
+            #endif
         }
     }
     
@@ -487,7 +497,9 @@ final class SwipeViewModel {
             try context.save()
             Task { await resetAndLoadContent() }
         } catch {
+            #if DEBUG
             print("Error resetting skipped items: \(error)")
+            #endif
         }
     }
     

@@ -22,7 +22,7 @@ struct ContentView: View {
                 .tag(1)
 
             // Library Tab
-            AlreadySeenHomeView()
+            SeenItHomeView()
                 .tabItem {
                     Label("Library", systemImage: "books.vertical.fill")
                 }

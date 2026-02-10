@@ -135,7 +135,7 @@ struct FilteredGridView: View {
         if displayedItems.count > 50 {
             text += "\n...and \(displayedItems.count - 50) more"
         }
-        text += "\n\nShared from AlreadySeen"
+        text += "\n\nShared from SeenIt"
         return text
     }
     
@@ -160,7 +160,7 @@ struct FilteredGridView: View {
         if items.count > 50 {
             text += "\n...and \(items.count - 50) more"
         }
-        text += "\n\nShared from AlreadySeen"
+        text += "\n\nShared from SeenIt"
         return text
     }
     

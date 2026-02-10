@@ -249,7 +249,9 @@ struct SwipeView: View {
         do {
             try modelContext.save()
         } catch {
+            #if DEBUG
             print("Error saving watchlist item: \(error)")
+            #endif
         }
         
         // Remove the card from the stack and treat it as swiped

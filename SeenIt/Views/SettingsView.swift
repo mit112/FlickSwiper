@@ -130,7 +130,7 @@ struct SettingsView: View {
                 
                 // MARK: - Support Section
                 Section {
-                    Link(destination: URL(string: "https://github.com")!) {
+                    Link(destination: URL(string: "https://mit112.github.io/SeenIt/")!) {
                         HStack {
                             Image(systemName: "hand.raised.fill")
                                 .foregroundStyle(.blue)
@@ -203,7 +203,9 @@ struct SettingsView: View {
             }
             try modelContext.save()
         } catch {
+            #if DEBUG
             print("Error resetting skipped items: \(error)")
+            #endif
         }
     }
     
@@ -212,7 +214,9 @@ struct SettingsView: View {
             try modelContext.delete(model: SwipedItem.self)
             try modelContext.save()
         } catch {
+            #if DEBUG
             print("Error resetting all swiped items: \(error)")
+            #endif
         }
     }
     
@@ -228,7 +232,9 @@ struct SettingsView: View {
             }
             try modelContext.save()
         } catch {
+            #if DEBUG
             print("Error resetting watchlist items: \(error)")
+            #endif
         }
     }
 }

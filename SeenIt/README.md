@@ -1,4 +1,4 @@
-# AlreadySeen
+# SeenIt
 
 A feature-rich iOS app for tracking movies and TV shows you've watched, building a watchlist, and sharing recommendations with friends.
 
@@ -59,8 +59,8 @@ A feature-rich iOS app for tracking movies and TV shows you've watched, building
 ## Project Structure
 
 ```
-AlreadySeen/
-├── AlreadySeenApp.swift         # App entry point, URLCache config, ModelContainer
+SeenIt/
+├── SeenItApp.swift         # App entry point, URLCache config, ModelContainer
 ├── ContentView.swift            # Tab navigation (Discover, Search, Library, Settings)
 ├── Config/                      # Build configuration and API key management
 ├── Models/
@@ -83,7 +83,7 @@ AlreadySeen/
 │   ├── DiscoverFiltersSheet.swift   # Combined sort, genre, year filter sheet
 │   ├── DiscoverDetailView.swift     # Card detail with Seen/Skip/Save actions
 │   ├── SearchView.swift         # Search tab — results, detail, mark as seen/watchlist
-│   ├── AlreadySeenHomeView.swift    # Library tab — watchlist, collections, lists
+│   ├── SeenItHomeView.swift    # Library tab — watchlist, collections, lists
 │   ├── SmartCollectionsSection.swift # Auto-generated collection cards
 │   ├── SmartCollectionCard.swift    # Gradient collection card
 │   ├── MyListsSection.swift     # User lists horizontal scroll
