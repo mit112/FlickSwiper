@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Detail view for a watchlist item — shows overview, rating, and "I've Watched This" action
 struct WatchlistItemDetailView: View {
     let item: SwipedItem
     let onMarkAsSeen: () -> Void

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+/// Rating sheet presented after marking a watchlist item as seen — converts watchlist → seen with a star rating
 struct WatchlistRatingSheet: View {
     let item: SwipedItem
     let onDismiss: () -> Void

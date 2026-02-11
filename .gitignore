@@ -16,22 +16,29 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 iOSInjectionProject/
 
-# Secrets - IMPORTANT: Never commit API keys
+# Secrets — NEVER commit API keys
 FlickSwiper/Config/Secrets.xcconfig
 
 # macOS
-.DS_Store
+**/.DS_Store
 *.swp
 *~.nib
+.AppleDouble
+.LSOverride
+._*
 
-# IDE
+# IDE / Editor
 .cursor/
 .drift/
 .driftignore
+.vscode/
+.idea/
+*.xcworkspace/xcuserdata/
 
 # Build products
 build/
 DerivedData/
+*.build/
 
 # Various settings
 *.pbxuser
@@ -42,3 +49,9 @@ DerivedData/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
+xcshareddata/IDEWorkspaceChecks.plist
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved

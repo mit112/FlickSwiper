@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+/// Search tab — debounced TMDB search with library-aware result indicators and detail views
 struct SearchView: View {
     @State private var viewModel = SearchViewModel()
 

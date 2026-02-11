@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Combined filter sheet for sort order, genre chips, and year range pickers
 struct DiscoverFiltersSheet: View {
     @Binding var selectedSort: StreamingSortOption
     @Binding var selectedGenre: Genre?

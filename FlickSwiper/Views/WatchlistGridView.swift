@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+/// Full grid view of watchlisted items with swipe-to-delete and "mark as seen" actions
 struct WatchlistGridView: View {
     let items: [SwipedItem]
     

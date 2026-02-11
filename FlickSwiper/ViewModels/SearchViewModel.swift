@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+/// ViewModel for the Search tab — manages debounced TMDB search with 400ms delay via Task cancellation
 @Observable
 final class SearchViewModel {
     var searchText = ""

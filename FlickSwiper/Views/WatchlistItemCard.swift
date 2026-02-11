@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Compact poster card for watchlist items shown in horizontal scroll and grid layouts
 struct WatchlistItemCard: View {
     let item: SwipedItem
     
