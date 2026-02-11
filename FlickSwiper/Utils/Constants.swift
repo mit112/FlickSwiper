@@ -24,6 +24,7 @@ enum Constants {
     enum StorageKeys {
         static let selectedDiscoveryMethod = "selectedDiscoveryMethod"
         static let contentTypeFilter = "contentTypeFilter"
+        static let hasSeenSwipeTutorial = "hasSeenSwipeTutorial"
     }
     
     // MARK: - UI

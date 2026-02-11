@@ -1,4 +1,11 @@
-import Foundation
+@preconcurrency import Foundation
+
+/// File-private date formatter (no actor isolation)
+private let tmdbDateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+}()
 
 /// Service for interacting with The Movie Database (TMDB) API
 actor TMDBService: MediaServiceProtocol {
@@ -22,12 +29,6 @@ actor TMDBService: MediaServiceProtocol {
     
     /// Default region for watch provider filtering (US)
     private let watchRegion = "US"
-    
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
     
     // MARK: - Initialization
     
@@ -127,7 +128,7 @@ actor TMDBService: MediaServiceProtocol {
         }
         
         if method == .upcoming {
-            let today = Self.dateFormatter.string(from: Date())
+            let today = await tmdbDateFormatter.string(from: Date())
             movieParams["primary_release_date.gte"] = today
             tvParams["first_air_date.gte"] = today
         }
@@ -249,7 +250,7 @@ actor TMDBService: MediaServiceProtocol {
     /// Fetch upcoming movies and upcoming TV shows (release date from today forward only)
     func fetchUpcoming(contentType: ContentTypeFilter, page: Int) async throws -> [MediaItem] {
         var items: [MediaItem] = []
-        let today = Self.dateFormatter.string(from: Date())
+        let today = await tmdbDateFormatter.string(from: Date())
         
         if contentType == .all || contentType == .movies {
             let params: [String: String] = [

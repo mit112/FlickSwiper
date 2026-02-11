@@ -12,6 +12,7 @@ struct SwipeView: View {
     @State private var pendingRatedItem: SwipedItem?
     @State private var pendingRatedTitle: String = ""
     @State private var detailItem: MediaItem?
+    @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,8 @@ struct SwipeView: View {
                 )
                 .padding(.top, 8)
                 .padding(.bottom, 12)
+                .background(Color(.systemBackground))
+                .zIndex(1)
                 
                 // Card stack or state views
                 ZStack {
@@ -48,7 +51,7 @@ struct SwipeView: View {
                                 .transition(.opacity)
                             
                             InlineRatingPrompt(
-                                itemTitle: pendingRatedTitle ?? "",
+                                itemTitle: pendingRatedTitle,
                                 onRate: { stars in
                                     pendingRatedItem?.personalRating = stars
                                     try? modelContext.save()
@@ -113,6 +116,14 @@ struct SwipeView: View {
             }
             .onAppear {
                 viewModel.syncIncludeSwipedSetting()
+            }
+            .overlay {
+                if !hasSeenTutorial && !viewModel.mediaItems.isEmpty {
+                    SwipeTutorialOverlay {
+                        hasSeenTutorial = true
+                    }
+                    .transition(.opacity)
+                }
             }
         }
     }
@@ -238,6 +249,9 @@ struct SwipeView: View {
     /// Save the given item to the watchlist and remove it from the stack
     /// without triggering a rating prompt.
     private func saveToWatchlist(item: MediaItem) {
+        // Add to undo stack so the user can undo watchlist actions
+        viewModel.addToUndoStack(item: item, direction: .watchlist)
+        
         let swipedItem = SwipedItem(from: item, direction: .watchlist)
         
         // Store which platform the user was browsing (only for streaming methods)

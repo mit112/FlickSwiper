@@ -370,7 +370,7 @@ final class SwipeViewModel {
     
     // MARK: - Undo Stack Management
     
-    private func addToUndoStack(item: MediaItem, direction: SwipedItem.SwipeDirection) {
+    func addToUndoStack(item: MediaItem, direction: SwipedItem.SwipeDirection) {
         undoStack.append((item: item, direction: direction))
         
         // Keep stack size limited

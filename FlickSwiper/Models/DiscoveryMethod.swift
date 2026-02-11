@@ -1,7 +1,7 @@
 import Foundation
 
 /// Discovery methods for browsing movies and TV shows
-enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable {
+enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     // General discovery
     case topRated = "Top Rated"
     case popular = "Popular"
@@ -26,11 +26,11 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable {
     // Specialty
     case crunchyroll = "Crunchyroll"
     
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
     
     /// Watch provider ID for streaming service filters (TMDB IDs for US region)
     /// Source: TMDB /watch/providers API
-    var watchProviderID: Int? {
+    nonisolated var watchProviderID: Int? {
         switch self {
         case .netflix: return 8
         case .amazonPrime: return 9 // Amazon Prime Video
@@ -116,7 +116,7 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable {
         return .general
     }
     
-    enum Category: String, CaseIterable {
+    enum Category: String, CaseIterable, Sendable {
         case general = "Discover"
         case streaming = "Streaming Services"
         case free = "Free Streaming"
@@ -135,7 +135,7 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable {
 // MARK: - Content Type Filter
 
 /// Filter for showing movies, TV shows, or both
-enum ContentTypeFilter: String, CaseIterable, Identifiable {
+enum ContentTypeFilter: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case movies = "Movies"
     case tvShows = "TV Shows"

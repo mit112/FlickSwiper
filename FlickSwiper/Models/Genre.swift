@@ -2,7 +2,7 @@ import Foundation
 
 /// Genre filter for movies and TV shows
 /// IDs are from TMDB API
-enum Genre: Int, CaseIterable, Identifiable, Codable {
+enum Genre: Int, CaseIterable, Identifiable, Codable, Sendable {
     // Common genres (work for both movies and TV)
     case action = 28
     case adventure = 12
@@ -29,7 +29,7 @@ enum Genre: Int, CaseIterable, Identifiable, Codable {
     case reality = 10764
     case kids = 10762
     
-    var id: Int { rawValue }
+    nonisolated var id: Int { rawValue }
     
     var name: String {
         switch self {

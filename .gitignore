@@ -17,7 +17,7 @@ fastlane/test_output
 iOSInjectionProject/
 
 # Secrets - IMPORTANT: Never commit API keys
-WatchVault/Config/Secrets.xcconfig
+FlickSwiper/Config/Secrets.xcconfig
 
 # macOS
 .DS_Store

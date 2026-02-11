@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct WatchVaultApp: App {
+struct FlickSwiperApp: App {
     
     init() {
         // Configure URL cache for poster images
@@ -21,7 +21,7 @@ struct WatchVaultApp: App {
         do {
             return try ModelContainer(
                 for: schema,
-                migrationPlan: WatchVaultMigrationPlan.self,
+                migrationPlan: FlickSwiperMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
         } catch {

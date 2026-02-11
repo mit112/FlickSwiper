@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Query private var allSwipedItems: [SwipedItem]
     
     @AppStorage("includeSwipedItems") private var includeSwipedItems: Bool = false
+    @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
     @State private var showResetConfirmation = false
     @State private var resetType: ResetType = .skipped
     @State private var showResetWatchlistConfirmation = false
@@ -59,6 +60,17 @@ struct SettingsView: View {
                 }
                 
                 Section {
+                    Button {
+                        hasSeenTutorial = false
+                    } label: {
+                        HStack {
+                            Image(systemName: "hand.draw.fill")
+                                .foregroundStyle(.blue)
+                            Text("Replay Swipe Tutorial")
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    
                     Button {
                         resetType = .skipped
                         showResetConfirmation = true
@@ -130,7 +142,7 @@ struct SettingsView: View {
                 
                 // MARK: - Support Section
                 Section {
-                    Link(destination: URL(string: "https://mit112.github.io/WatchVault/")!) {
+                    Link(destination: URL(string: "https://mit112.github.io/FlickSwiper/")!) {
                         HStack {
                             Image(systemName: "hand.raised.fill")
                                 .foregroundStyle(.blue)

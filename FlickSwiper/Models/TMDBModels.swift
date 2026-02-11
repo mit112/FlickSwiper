@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Movie Response from TMDB
 
-struct TMDBMovie: Codable, Identifiable {
+struct TMDBMovie: Codable, Identifiable, Sendable {
     let id: Int
     let title: String
     let overview: String?
@@ -24,7 +24,7 @@ struct TMDBMovie: Codable, Identifiable {
 
 // MARK: - TV Show Response from TMDB
 
-struct TMDBTVShow: Codable, Identifiable {
+struct TMDBTVShow: Codable, Identifiable, Sendable {
     let id: Int
     let name: String
     let overview: String?
@@ -46,7 +46,7 @@ struct TMDBTVShow: Codable, Identifiable {
 
 // MARK: - Paginated Response Wrapper
 
-struct TMDBResponse<T: Codable>: Codable {
+struct TMDBResponse<T: Codable>: Codable, Sendable {
     let page: Int
     let results: [T]
     let totalPages: Int
@@ -62,7 +62,7 @@ struct TMDBResponse<T: Codable>: Codable {
 
 // MARK: - Trending Response (has media_type field)
 
-struct TMDBTrendingItem: Codable, Identifiable {
+struct TMDBTrendingItem: Codable, Identifiable, Sendable {
     let id: Int
     let mediaType: String
     let title: String?       // For movies
@@ -87,11 +87,11 @@ struct TMDBTrendingItem: Codable, Identifiable {
         case genreIds = "genre_ids"
     }
     
-    var displayTitle: String {
+    nonisolated var displayTitle: String {
         title ?? name ?? "Unknown"
     }
     
-    var displayReleaseDate: String? {
+    nonisolated var displayReleaseDate: String? {
         releaseDate ?? firstAirDate
     }
 }

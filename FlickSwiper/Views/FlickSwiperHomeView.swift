@@ -3,7 +3,7 @@ import SwiftData
 
 /// New landing page for the "Library" tab
 /// Shows smart collections, user lists, recently added, and a "View All" link
-struct WatchVaultHomeView: View {
+struct FlickSwiperHomeView: View {
     @Query(filter: #Predicate<SwipedItem> { $0.swipeDirection == "seen" },
            sort: \SwipedItem.dateSwiped, order: .reverse)
     private var seenItems: [SwipedItem]
@@ -277,6 +277,6 @@ struct WatchVaultHomeView: View {
 }
 
 #Preview {
-    WatchVaultHomeView()
+    FlickSwiperHomeView()
         .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self], inMemory: true)
 }

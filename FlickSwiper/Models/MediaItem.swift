@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Unified Media Item for UI
 
 /// A unified type representing both movies and TV shows for use in the UI
-struct MediaItem: Identifiable, Hashable {
+struct MediaItem: Identifiable, Hashable, Sendable {
     let id: Int
     let title: String
     let overview: String
@@ -59,7 +59,7 @@ struct MediaItem: Identifiable, Hashable {
 
 extension MediaItem {
     /// Create MediaItem from TMDB Movie response
-    init(from movie: TMDBMovie) {
+    nonisolated init(from movie: TMDBMovie) {
         self.id = movie.id
         self.title = movie.title
         self.overview = movie.overview ?? ""
@@ -71,7 +71,7 @@ extension MediaItem {
     }
     
     /// Create MediaItem from TMDB TV Show response
-    init(from tvShow: TMDBTVShow) {
+    nonisolated init(from tvShow: TMDBTVShow) {
         self.id = tvShow.id
         self.title = tvShow.name
         self.overview = tvShow.overview ?? ""
@@ -83,7 +83,7 @@ extension MediaItem {
     }
     
     /// Create MediaItem from TMDB Trending Item response
-    init(from trending: TMDBTrendingItem) {
+    nonisolated init(from trending: TMDBTrendingItem) {
         self.id = trending.id
         self.title = trending.displayTitle
         self.overview = trending.overview ?? ""

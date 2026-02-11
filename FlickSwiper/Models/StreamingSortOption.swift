@@ -1,7 +1,7 @@
 import Foundation
 
 /// Sort options for streaming service discovery (movies and TV)
-enum StreamingSortOption: String, CaseIterable, Identifiable {
+enum StreamingSortOption: String, CaseIterable, Identifiable, Sendable {
     case popular = "Popular"
     case topRated = "Top Rated"
     case newest = "Newest"
@@ -12,7 +12,7 @@ enum StreamingSortOption: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Sort parameter for TMDB movie discover endpoint
-    var movieSortParam: String {
+    nonisolated var movieSortParam: String {
         switch self {
         case .popular: return "popularity.desc"
         case .topRated: return "vote_average.desc"
@@ -24,7 +24,7 @@ enum StreamingSortOption: String, CaseIterable, Identifiable {
     }
 
     /// Sort parameter for TMDB TV discover endpoint
-    var tvSortParam: String {
+    nonisolated var tvSortParam: String {
         switch self {
         case .popular: return "popularity.desc"
         case .topRated: return "vote_average.desc"
