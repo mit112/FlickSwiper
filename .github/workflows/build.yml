@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Create Secrets.xcconfig
+        run: |
+          echo "TMDB_API_TOKEN = CI_PLACEHOLDER_TOKEN" > FlickSwiper/Config/Secrets.xcconfig
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project FlickSwiper.xcodeproj \
+            -scheme FlickSwiper \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO | tail -20

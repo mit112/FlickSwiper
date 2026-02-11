@@ -2,19 +2,20 @@
 
 **A gesture-driven iOS app for discovering, tracking, and organizing movies & TV shows.**
 
+[![Build](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml/badge.svg)](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/SwiftUI-5-blue.svg)](https://developer.apple.com/swiftui/)
 [![SwiftData](https://img.shields.io/badge/SwiftData-1.0-green.svg)](https://developer.apple.com/documentation/swiftdata)
 [![iOS](https://img.shields.io/badge/iOS-17.0%2B-lightgrey.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<!-- Screenshots placeholder — replace with actual App Store screenshots -->
-<!-- <p align="center">
-  <img src="docs/screenshots/discover.png" width="200" />
-  <img src="docs/screenshots/library.png" width="200" />
-  <img src="docs/screenshots/search.png" width="200" />
-  <img src="docs/screenshots/settings.png" width="200" />
-</p> -->
+<p align="center">
+  <img src="docs/screenshots/discover.jpg" width="180" />
+  <img src="docs/screenshots/swipe-seen.jpg" width="180" />
+  <img src="docs/screenshots/rate.jpg" width="180" />
+  <img src="docs/screenshots/library.jpg" width="180" />
+  <img src="docs/screenshots/search.jpg" width="180" />
+</p>
 
 ## Overview
 
