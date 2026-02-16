@@ -1,17 +1,32 @@
 import SwiftUI
 import SwiftData
 
-/// ViewModel for the Search tab — manages debounced TMDB search with 400ms delay via Task cancellation
+/// ViewModel for the Search tab — manages debounced TMDB search with 400ms delay via Task cancellation.
+///
+/// Explicitly `@MainActor` because all properties drive UI bindings via `@Observable`.
+/// Matches the isolation pattern used by `SwipeViewModel`.
+@MainActor
 @Observable
 final class SearchViewModel {
     var searchText = ""
-    var results: [MediaItem] = []
-    var isLoading = false
-    var hasSearched = false
-    var errorMessage: String?
+    private(set) var results: [MediaItem] = []
+    private(set) var isLoading = false
+    private(set) var hasSearched = false
+    private(set) var errorMessage: String?
+    
+    /// Whether the last failure was due to no network connectivity.
+    /// Drives a dedicated offline state in SearchView.
+    private(set) var isOffline = false
 
-    private let service = TMDBService()
+    /// Media service instance (injectable for testing)
+    private let service: any MediaServiceProtocol
     private var searchTask: Task<Void, Never>?
+
+    /// Initialize with optional media service for dependency injection
+    /// - Parameter mediaService: Service to use for search. Defaults to TMDBService.
+    init(mediaService: any MediaServiceProtocol = TMDBService()) {
+        self.service = mediaService
+    }
 
     /// Debounced search — call this from .onChange of searchText
     func search() {
@@ -31,25 +46,25 @@ final class SearchViewModel {
 
             guard !Task.isCancelled else { return }
 
-            await MainActor.run { isLoading = true; errorMessage = nil }
+            isLoading = true
+            errorMessage = nil
+            isOffline = false
 
             do {
-                let items = try await service.searchMulti(query: query)
+                let items = try await service.searchMulti(query: query, page: 1)
 
                 guard !Task.isCancelled else { return }
 
-                await MainActor.run {
-                    self.results = items
-                    self.isLoading = false
-                    self.hasSearched = true
-                }
+                results = items
+                isLoading = false
+                hasSearched = true
             } catch {
                 guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                    self.hasSearched = true
-                }
+
+                isOffline = NetworkError.isOffline(error)
+                errorMessage = error.localizedDescription
+                isLoading = false
+                hasSearched = true
             }
         }
     }

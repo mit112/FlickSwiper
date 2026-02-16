@@ -125,6 +125,7 @@ struct MovieCardView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: "Mark as already seen") { onSwipeRight() }
             .accessibilityAction(named: "Skip") { onSwipeLeft() }
+            .accessibilityAction(named: "Save to watchlist") { onSaveToWatchlist() }
         }
     }
     
@@ -154,11 +155,13 @@ struct MovieCardView: View {
         }
 
         if direction == .right {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            Task {
+                try? await Task.sleep(for: .seconds(0.2))
                 onSwipeRight()
             }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            Task {
+                try? await Task.sleep(for: .seconds(0.25))
                 onSwipeLeft()
             }
         }
@@ -337,7 +340,8 @@ struct MovieCardView: View {
                         offset = CGSize(width: 0, height: -800)
                     }
                     HapticManager.seen()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.2))
                         onSaveToWatchlist()
                     }
                 } else if !isVerticalDominant && width > swipeThreshold {
@@ -347,7 +351,8 @@ struct MovieCardView: View {
                         rotation = maxRotation
                     }
                     HapticManager.seen()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.2))
                         onSwipeRight()
                     }
                 } else if !isVerticalDominant && width < -swipeThreshold {
@@ -357,7 +362,8 @@ struct MovieCardView: View {
                         rotation = -maxRotation
                     }
                     HapticManager.skip()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    Task {
+                        try? await Task.sleep(for: .seconds(0.2))
                         onSwipeLeft()
                     }
                 } else {

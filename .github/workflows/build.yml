@@ -1,4 +1,4 @@
-name: Build
+name: Build & Test
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +23,54 @@ jobs:
 
       - name: Build
         run: |
+          set -o pipefail
           xcodebuild build \
             -project FlickSwiper.xcodeproj \
             -scheme FlickSwiper \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO | tail -20
+
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project FlickSwiper.xcodeproj \
+            -scheme FlickSwiper \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO | tail -40
+
+      - name: Coverage Report
+        run: |
+          xcrun xccov view --report TestResults.xcresult
+
+      - name: Enforce Coverage Threshold
+        env:
+          MIN_COVERAGE: "0.30"
+        run: |
+          xcrun xccov view --report --json TestResults.xcresult > coverage.json
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          threshold = float(os.environ.get("MIN_COVERAGE", "0.30"))
+          with open("coverage.json", "r", encoding="utf-8") as f:
+              payload = json.load(f)
+
+          targets = payload.get("targets", [])
+          app_target = next((t for t in targets if t.get("name") == "FlickSwiper"), None)
+          if app_target is None:
+              print("Could not find FlickSwiper target in coverage report.")
+              sys.exit(1)
+
+          coverage = float(app_target.get("lineCoverage", 0.0))
+          print(f"FlickSwiper line coverage: {coverage:.2%} (threshold: {threshold:.2%})")
+
+          if coverage < threshold:
+              print("Coverage threshold check failed.")
+              sys.exit(1)
+          PY

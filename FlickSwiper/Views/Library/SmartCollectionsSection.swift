@@ -1,30 +1,46 @@
 import SwiftUI
+import SwiftData
 
-/// Horizontal scroll of auto-generated smart collections
+/// Horizontal scroll of auto-generated smart collections.
+///
+/// Owns its own `@Query` for seen items instead of accepting the full array from
+/// the parent. Caches the computed collections in `@State` and only rebuilds when
+/// the query result changes, avoiding expensive multi-pass iteration on every
+/// parent body evaluation.
 struct SmartCollectionsSection: View {
-    let seenItems: [SwipedItem]
+    @Query(filter: #Predicate<SwipedItem> { $0.swipeDirection == "seen" },  // matches SwipedItem.directionSeen
+           sort: \SwipedItem.dateSwiped, order: .reverse)
+    private var seenItems: [SwipedItem]
+    
+    @State private var collections: [SmartCollection] = []
     
     var body: some View {
-        let collections = buildCollections()
-        
-        if !collections.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Collections")
-                    .font(.title3.weight(.bold))
-                    .padding(.horizontal, 16)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(collections) { collection in
-                            NavigationLink(value: collection) {
-                                SmartCollectionCard(collection: collection)
+        Group {
+            if !collections.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Collections")
+                        .font(.title3.weight(.bold))
+                        .padding(.horizontal, 16)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 12) {
+                            ForEach(collections) { collection in
+                                NavigationLink(value: collection) {
+                                    SmartCollectionCard(collection: collection)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal, 16)
                     }
-                    .padding(.horizontal, 16)
                 }
             }
+        }
+        .onChange(of: seenItems.count) { _, _ in
+            collections = buildCollections()
+        }
+        .onAppear {
+            collections = buildCollections()
         }
     }
     

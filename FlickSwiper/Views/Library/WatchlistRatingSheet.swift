@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Rating sheet presented after marking a watchlist item as seen — converts watchlist → seen with a star rating
 struct WatchlistRatingSheet: View {
@@ -7,6 +8,8 @@ struct WatchlistRatingSheet: View {
     let onDismiss: () -> Void
     
     @Environment(\.modelContext) private var modelContext
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "WatchlistRating")
+    @State private var persistenceErrorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -23,9 +26,13 @@ struct WatchlistRatingSheet: View {
                 HStack(spacing: 12) {
                     ForEach(1...5, id: \.self) { star in
                         Button {
-                            item.personalRating = star
-                            try? modelContext.save()
-                            onDismiss()
+                            do {
+                                try SwipedItemStore(context: modelContext).setPersonalRating(star, for: item)
+                                onDismiss()
+                            } catch {
+                                logger.error("Failed to save watchlist rating: \(error.localizedDescription)")
+                                persistenceErrorMessage = "We couldn't save your rating. Please try again."
+                            }
                         } label: {
                             Image(systemName: "star.fill")
                                 .font(.title)
@@ -44,6 +51,17 @@ struct WatchlistRatingSheet: View {
             .padding()
         }
         .presentationDetents([.height(280)])
+        .alert(
+            "Couldn't Save Changes",
+            isPresented: Binding(
+                get: { persistenceErrorMessage != nil },
+                set: { if !$0 { persistenceErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+        } message: {
+            Text(persistenceErrorMessage ?? "Please try again.")
+        }
     }
 }
 

@@ -4,7 +4,7 @@ import SwiftData
 
 /// V1: Initial schema at launch
 enum FlickSwiperSchemaV1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(1, 0, 0)
+    static let versionIdentifier = Schema.Version(1, 0, 0)
     
     static var models: [any PersistentModel.Type] {
         [SwipedItem.self]
@@ -14,7 +14,7 @@ enum FlickSwiperSchemaV1: VersionedSchema {
 /// V2: Added personalRating, genreIDsString, sourcePlatform to SwipedItem;
 ///     Added UserList and ListEntry models for custom lists
 enum FlickSwiperSchemaV2: VersionedSchema {
-    static var versionIdentifier = Schema.Version(2, 0, 0)
+    static let versionIdentifier = Schema.Version(2, 0, 0)
     
     static var models: [any PersistentModel.Type] {
         [SwipedItem.self, UserList.self, ListEntry.self]

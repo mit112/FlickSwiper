@@ -1,26 +1,24 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Full settings screen with discovery controls, about info, and support links
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "SettingsView")
     
-    @Query private var allSwipedItems: [SwipedItem]
-    
-    @AppStorage("includeSwipedItems") private var includeSwipedItems: Bool = false
+    @AppStorage(Constants.StorageKeys.includeSwipedItems) private var includeSwipedItems: Bool = false
     @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
     @State private var showResetConfirmation = false
     @State private var resetType: ResetType = .skipped
     @State private var showResetWatchlistConfirmation = false
     
+    /// Counts computed on-demand instead of loading all SwipedItem records into memory.
+    @State private var swipedCount: Int = 0
+    @State private var watchlistCount: Int = 0
+    
     enum ResetType {
         case skipped, all
-    }
-    
-    private var swipedCount: Int { allSwipedItems.count }
-    
-    private var watchlistCount: Int {
-        allSwipedItems.filter { $0.isWatchlist }.count
     }
     
     private var appVersion: String {
@@ -142,7 +140,7 @@ struct SettingsView: View {
                 
                 // MARK: - Support Section
                 Section {
-                    Link(destination: URL(string: "https://mit112.github.io/FlickSwiper/")!) {
+                    Link(destination: Constants.URLs.privacyPolicy) {
                         HStack {
                             Image(systemName: "hand.raised.fill")
                                 .foregroundStyle(.blue)
@@ -155,7 +153,7 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Link(destination: URL(string: "mailto:mitsheth82@gmail.com")!) {
+                    Link(destination: Constants.URLs.contactEmail) {
                         HStack {
                             Image(systemName: "envelope.fill")
                                 .foregroundStyle(.blue)
@@ -172,6 +170,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .onAppear {
+                refreshCounts()
+            }
             .confirmationDialog(
                 resetType == .skipped ? "Reset Skipped Items?" : "Reset All Swiped Items?",
                 isPresented: $showResetConfirmation,
@@ -201,6 +202,23 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Statistics
+    
+    /// Fetch counts from SwiftData without loading full objects into memory.
+    private func refreshCounts() {
+        do {
+            let allDescriptor = FetchDescriptor<SwipedItem>()
+            swipedCount = try modelContext.fetchCount(allDescriptor)
+            
+            let watchlistDescriptor = FetchDescriptor<SwipedItem>(
+                predicate: #Predicate { $0.swipeDirection == "watchlist" }
+            )
+            watchlistCount = try modelContext.fetchCount(watchlistDescriptor)
+        } catch {
+            logger.error("Error fetching counts: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Reset Actions
     
     private func resetSkippedItems() {
@@ -214,10 +232,9 @@ struct SettingsView: View {
                 modelContext.delete(item)
             }
             try modelContext.save()
+            refreshCounts()
         } catch {
-            #if DEBUG
-            print("Error resetting skipped items: \(error)")
-            #endif
+            logger.error("Error resetting skipped items: \(error.localizedDescription)")
         }
     }
     
@@ -225,10 +242,9 @@ struct SettingsView: View {
         do {
             try modelContext.delete(model: SwipedItem.self)
             try modelContext.save()
+            refreshCounts()
         } catch {
-            #if DEBUG
-            print("Error resetting all swiped items: \(error)")
-            #endif
+            logger.error("Error resetting all swiped items: \(error.localizedDescription)")
         }
     }
     
@@ -243,10 +259,9 @@ struct SettingsView: View {
                 modelContext.delete(item)
             }
             try modelContext.save()
+            refreshCounts()
         } catch {
-            #if DEBUG
-            print("Error resetting watchlist items: \(error)")
-            #endif
+            logger.error("Error resetting watchlist items: \(error.localizedDescription)")
         }
     }
 }

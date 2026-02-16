@@ -24,7 +24,8 @@ struct InlineRatingPrompt: View {
                         selectedRating = star
                         HapticManager.selectionChanged()
                         // Small delay so user sees the fill before dismissal
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        Task {
+                            try? await Task.sleep(for: .seconds(0.25))
                             onRate(star)
                         }
                     } label: {

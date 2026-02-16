@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Search tab — debounced TMDB search with library-aware result indicators and detail views
 struct SearchView: View {
-    @State private var viewModel = SearchViewModel()
+    @State private var viewModel: SearchViewModel
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "SearchView")
 
     @Query(filter: #Predicate<SwipedItem> { $0.swipeDirection == "seen" })
     private var seenItems: [SwipedItem]
@@ -17,6 +19,11 @@ struct SearchView: View {
     @State private var showRatingPrompt = false
     @State private var pendingSwipedItem: SwipedItem?
     @State private var pendingTitle: String?
+    @State private var persistenceErrorMessage: String?
+
+    init(mediaService: any MediaServiceProtocol = TMDBService()) {
+        _viewModel = State(initialValue: SearchViewModel(mediaService: mediaService))
+    }
 
     /// Set of media IDs already in the user's library
     private var seenMediaIDs: Set<Int> {
@@ -35,6 +42,8 @@ struct SearchView: View {
                     emptyPromptView
                 } else if viewModel.isLoading && viewModel.results.isEmpty {
                     loadingView
+                } else if viewModel.isOffline {
+                    offlineView
                 } else if let error = viewModel.errorMessage {
                     errorView(error)
                 } else if viewModel.hasSearched && viewModel.results.isEmpty {
@@ -67,6 +76,17 @@ struct SearchView: View {
                 if let title = pendingTitle {
                     ratingPromptSheet(title: title)
                 }
+            }
+            .alert(
+                "Couldn't Save Changes",
+                isPresented: Binding(
+                    get: { persistenceErrorMessage != nil },
+                    set: { if !$0 { persistenceErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+            } message: {
+                Text(persistenceErrorMessage ?? "Please try again.")
             }
         }
     }
@@ -152,29 +172,63 @@ struct SearchView: View {
         .padding()
     }
 
+    // MARK: - Offline View
+    
+    private var offlineView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            
+            Text("You're Offline")
+                .font(.headline)
+            
+            Text("Connect to the internet to search.\nYour library is still available!")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button {
+                viewModel.search()
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .font(.body.weight(.semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding()
+    }
+
     // MARK: - Mark as Seen Flow
 
     private func markAsSeen(_ item: MediaItem) {
-        let swipedItem = SwipedItem(from: item, direction: .seen)
-        modelContext.insert(swipedItem)
-        try? modelContext.save()
+        do {
+            let swipedItem = try SwipedItemStore(context: modelContext).markAsSeen(from: item)
+            selectedItem = nil
+            pendingSwipedItem = swipedItem
+            pendingTitle = item.title
 
-        selectedItem = nil
-
-        pendingSwipedItem = swipedItem
-        pendingTitle = item.title
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            showRatingPrompt = true
+            Task {
+                try? await Task.sleep(for: .seconds(0.3))
+                showRatingPrompt = true
+            }
+        } catch {
+            logger.error("Failed to mark item as seen from search: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't save this item to your library. Please try again."
         }
     }
     
     private func saveToWatchlist(_ item: MediaItem) {
-        let swipedItem = SwipedItem(from: item, direction: .watchlist)
-        modelContext.insert(swipedItem)
-        try? modelContext.save()
-        
-        selectedItem = nil
+        do {
+            _ = try SwipedItemStore(context: modelContext).saveToWatchlist(from: item)
+            selectedItem = nil
+        } catch {
+            logger.error("Failed to save item to watchlist from search: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't save this item to your watchlist. Please try again."
+        }
     }
 
     private func ratingPromptSheet(title: String) -> some View {
@@ -192,11 +246,17 @@ struct SearchView: View {
                 HStack(spacing: 12) {
                     ForEach(1...5, id: \.self) { star in
                         Button {
-                            pendingSwipedItem?.personalRating = star
-                            try? modelContext.save()
-                            showRatingPrompt = false
-                            pendingSwipedItem = nil
-                            pendingTitle = nil
+                            if let pendingItem = pendingSwipedItem {
+                                do {
+                                    try SwipedItemStore(context: modelContext).setPersonalRating(star, for: pendingItem)
+                                    showRatingPrompt = false
+                                    pendingSwipedItem = nil
+                                    pendingTitle = nil
+                                } catch {
+                                    logger.error("Failed to save search rating: \(error.localizedDescription)")
+                                    persistenceErrorMessage = "We couldn't save your rating. Please try again."
+                                }
+                            }
                         } label: {
                             Image(systemName: "star.fill")
                                 .font(.title)

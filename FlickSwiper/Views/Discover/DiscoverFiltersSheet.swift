@@ -178,12 +178,12 @@ struct DiscoverFiltersSheet: View {
 
                     Menu {
                         Button("Any") { yearFilterMin = nil }
-                        ForEach(yearOptions.reversed(), id: \.self) { year in
-                            Button("\(year)") { yearFilterMin = year }
+                        ForEach(minYearOptions.reversed(), id: \.self) { year in
+                            Button(String(year)) { yearFilterMin = year }
                         }
                     } label: {
                         HStack {
-                            Text(yearFilterMin.map { "\($0)" } ?? "Any")
+                            Text(yearFilterMin.map { String($0) } ?? "Any")
                                 .font(.subheadline.weight(.medium))
                             Image(systemName: "chevron.down")
                                 .font(.caption2)
@@ -207,12 +207,12 @@ struct DiscoverFiltersSheet: View {
 
                     Menu {
                         Button("Any") { yearFilterMax = nil }
-                        ForEach(yearOptions.reversed(), id: \.self) { year in
-                            Button("\(year)") { yearFilterMax = year }
+                        ForEach(maxYearOptions.reversed(), id: \.self) { year in
+                            Button(String(year)) { yearFilterMax = year }
                         }
                     } label: {
                         HStack {
-                            Text(yearFilterMax.map { "\($0)" } ?? "Any")
+                            Text(yearFilterMax.map { String($0) } ?? "Any")
                                 .font(.subheadline.weight(.medium))
                             Image(systemName: "chevron.down")
                                 .font(.caption2)
@@ -231,9 +231,25 @@ struct DiscoverFiltersSheet: View {
 
     // MARK: - Helpers
 
-    private var yearOptions: [Int] {
+    private var allYearOptions: [Int] {
         let currentYear = Calendar.current.component(.year, from: Date())
         return Array(1950...currentYear + 2)
+    }
+    
+    /// "From" options: capped at yearFilterMax if set
+    private var minYearOptions: [Int] {
+        if let max = yearFilterMax {
+            return allYearOptions.filter { $0 <= max }
+        }
+        return allYearOptions
+    }
+    
+    /// "To" options: floored at yearFilterMin if set
+    private var maxYearOptions: [Int] {
+        if let min = yearFilterMin {
+            return allYearOptions.filter { $0 >= min }
+        }
+        return allYearOptions
     }
 
     private func clearAll() {

@@ -1,16 +1,21 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import os
 
 /// ViewModel for the swipe view
-/// Handles fetching content, filtering swiped items, and managing swipe actions
+/// Handles fetching content, filtering swiped items, and managing swipe actions.
+///
+/// Explicitly `@MainActor` because all properties drive UI bindings via `@Observable`.
+@MainActor
 @Observable
 final class SwipeViewModel {
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "SwipeViewModel")
     
     // MARK: - Published Properties
     
     /// Queue of media items to display
-    var mediaItems: [MediaItem] = []
+    private(set) var mediaItems: [MediaItem] = []
     
     /// Currently selected discovery method
     var selectedMethod: DiscoveryMethod = .popular {
@@ -84,13 +89,33 @@ final class SwipeViewModel {
     
     /// Whether to include previously swiped items (show them again)
     /// Reads from UserDefaults (written by @AppStorage in SettingsView)
-    var includeSwipedItems: Bool = UserDefaults.standard.bool(forKey: "includeSwipedItems")
+    var includeSwipedItems: Bool = UserDefaults.standard.bool(forKey: Constants.StorageKeys.includeSwipedItems)
     
-    /// Check if the setting changed (e.g. user toggled in Settings) and reload if needed
-    func syncIncludeSwipedSetting() {
-        let current = UserDefaults.standard.bool(forKey: "includeSwipedItems")
-        if current != includeSwipedItems {
-            includeSwipedItems = current
+    /// Sync all settings and state that can change while the Discover tab is off-screen.
+    /// Called from SwipeView's `.onAppear` on every tab switch.
+    ///
+    /// Handles two cases:
+    /// 1. The "Show Previously Swiped" toggle changed in Settings.
+    /// 2. Swiped items were deleted in Settings (reset skipped, reset all, clear watchlist),
+    ///    which means `swipedIDs` is stale and items should reappear in discovery.
+    func syncWithSettings(context: ModelContext) {
+        var needsReload = false
+        
+        // Check if the "include swiped" toggle changed
+        let currentToggle = UserDefaults.standard.bool(forKey: Constants.StorageKeys.includeSwipedItems)
+        if currentToggle != includeSwipedItems {
+            includeSwipedItems = currentToggle
+            needsReload = true
+        }
+        
+        // Reload swiped IDs from SwiftData — picks up any deletions from Settings
+        let previousCount = swipedIDs.count
+        loadSwipedIDs(context: context)
+        if swipedIDs.count != previousCount {
+            needsReload = true
+        }
+        
+        if needsReload {
             scheduleContentReload()
         }
     }
@@ -107,13 +132,17 @@ final class SwipeViewModel {
     }
     
     /// Loading state
-    var isLoading: Bool = false
+    private(set) var isLoading: Bool = false
     
-    /// Error message to display
-    var errorMessage: String?
+    /// Error message to display (nil when no error)
+    private(set) var errorMessage: String?
+    
+    /// Whether the last failure was due to no network connectivity.
+    /// Drives a dedicated offline state in SwipeView.
+    private(set) var isOffline: Bool = false
     
     /// Whether we've reached the end of available content
-    var hasReachedEnd: Bool = false
+    private(set) var hasReachedEnd: Bool = false
     
     /// Count of swiped items (for display)
     var swipedCount: Int { swipedIDs.count }
@@ -165,76 +194,83 @@ final class SwipeViewModel {
     
     /// Load initial content and swiped IDs
     func loadInitialContent(context: ModelContext) async {
-        await loadSwipedIDs(context: context)
+        loadSwipedIDs(context: context)
         await loadContent()
     }
     
     /// Load swiped IDs from SwiftData for filtering
-    func loadSwipedIDs(context: ModelContext) async {
+    func loadSwipedIDs(context: ModelContext) {
         let descriptor = FetchDescriptor<SwipedItem>()
         
         do {
             let swipedItems = try context.fetch(descriptor)
-            await MainActor.run {
-                self.swipedIDs = Set(swipedItems.map { $0.uniqueID })
-            }
+            self.swipedIDs = Set(swipedItems.map { $0.uniqueID })
         } catch {
-            #if DEBUG
-            print("Error loading swiped IDs: \(error)")
-            #endif
+            logger.error("Error loading swiped IDs: \(error.localizedDescription)")
         }
     }
     
-    /// Load more content from the API
+    /// Load more content from the API.
+    ///
+    /// If most fetched items were already swiped, automatically fetches additional pages
+    /// up to `maxAutoPages` to keep the card queue populated.
     func loadContent() async {
         guard !isLoading else { return }
         
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
+        isLoading = true
+        errorMessage = nil
+        isOffline = false
         
-        do {
-            let newItems = try await mediaService.fetchContent(
-                for: selectedMethod,
-                contentType: contentTypeFilter,
-                genre: selectedGenre,
-                page: currentPage,
-                sort: selectedSort
-            )
-            
-            // Filter out already swiped items
-            let filteredItems = filterSwipedItems(newItems)
-            
-            await MainActor.run {
+        // Limit consecutive auto-fetch attempts to prevent runaway API calls
+        // when the user has swiped through most available content.
+        let maxAutoPages = 5
+        var autoPageAttempts = 0
+        
+        while autoPageAttempts < maxAutoPages {
+            do {
+                let newItems = try await mediaService.fetchContent(
+                    for: selectedMethod,
+                    contentType: contentTypeFilter,
+                    genre: selectedGenre,
+                    page: currentPage,
+                    sort: selectedSort,
+                    yearMin: yearFilterMin,
+                    yearMax: yearFilterMax
+                )
+                
+                let filteredItems = filterSwipedItems(newItems)
+                
                 if filteredItems.isEmpty && newItems.isEmpty {
                     hasReachedEnd = true
-                } else {
-                    mediaItems.append(contentsOf: filteredItems)
-                    currentPage += 1
-                    
-                    // If we filtered too many items, load more
-                    if filteredItems.count < 5 && !hasReachedEnd {
-                        Task { await loadContent() }
-                    }
+                    break
                 }
-                isLoading = false
-            }
-        } catch {
-            await MainActor.run {
+                
+                mediaItems.append(contentsOf: filteredItems)
+                currentPage += 1
+                
+                // If we got enough usable items, stop fetching
+                if filteredItems.count >= 5 || hasReachedEnd {
+                    break
+                }
+                
+                // Otherwise, most items were filtered out — try another page
+                autoPageAttempts += 1
+                
+            } catch {
+                isOffline = NetworkError.isOffline(error)
                 errorMessage = error.localizedDescription
-                isLoading = false
+                break
             }
         }
+        
+        isLoading = false
     }
     
     /// Reset and reload content (when changing discovery method)
     func resetAndLoadContent() async {
-        await MainActor.run {
-            mediaItems = []
-            currentPage = 1
-            hasReachedEnd = false
-        }
+        mediaItems = []
+        currentPage = 1
+        hasReachedEnd = false
         await loadContent()
     }
     
@@ -280,9 +316,7 @@ final class SwipeViewModel {
         do {
             try context.save()
         } catch {
-            #if DEBUG
-            print("Error saving swipe right: \(error)")
-            #endif
+            logger.error("Error saving swipe right: \(error.localizedDescription)")
         }
         
         // Remove from queue
@@ -316,9 +350,7 @@ final class SwipeViewModel {
         do {
             try context.save()
         } catch {
-            #if DEBUG
-            print("Error saving swipe left: \(error)")
-            #endif
+            logger.error("Error saving swipe left: \(error.localizedDescription)")
         }
         
         // Remove from queue
@@ -362,9 +394,7 @@ final class SwipeViewModel {
             HapticManager.undo()
             
         } catch {
-            #if DEBUG
-            print("Error undoing swipe: \(error)")
-            #endif
+            logger.error("Error undoing swipe: \(error.localizedDescription)")
         }
     }
     
@@ -476,9 +506,7 @@ final class SwipeViewModel {
             swipedIDs.removeAll()
             Task { await resetAndLoadContent() }
         } catch {
-            #if DEBUG
-            print("Error resetting swiped items: \(error)")
-            #endif
+            logger.error("Error resetting swiped items: \(error.localizedDescription)")
         }
     }
     
@@ -497,9 +525,7 @@ final class SwipeViewModel {
             try context.save()
             Task { await resetAndLoadContent() }
         } catch {
-            #if DEBUG
-            print("Error resetting skipped items: \(error)")
-            #endif
+            logger.error("Error resetting skipped items: \(error.localizedDescription)")
         }
     }
     
@@ -520,12 +546,12 @@ final class SwipeViewModel {
     
     /// Save selected discovery method to UserDefaults
     private func saveSelectedMethod() {
-        UserDefaults.standard.set(selectedMethod.rawValue, forKey: "selectedDiscoveryMethod")
+        UserDefaults.standard.set(selectedMethod.rawValue, forKey: Constants.StorageKeys.selectedDiscoveryMethod)
     }
     
     /// Load selected discovery method from UserDefaults
     private func loadSelectedMethod() {
-        if let savedMethod = UserDefaults.standard.string(forKey: "selectedDiscoveryMethod"),
+        if let savedMethod = UserDefaults.standard.string(forKey: Constants.StorageKeys.selectedDiscoveryMethod),
            let method = DiscoveryMethod(rawValue: savedMethod) {
             selectedMethod = method
         }

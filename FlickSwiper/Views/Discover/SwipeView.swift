@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Main swipe view for discovering movies and TV shows
 struct SwipeView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel = SwipeViewModel()
+    @State private var viewModel: SwipeViewModel
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "SwipeView")
     @State private var showingDiscoveryPicker = false
     @State private var triggerSwipeLeft = false
     @State private var triggerSwipeRight = false
@@ -12,7 +14,12 @@ struct SwipeView: View {
     @State private var pendingRatedItem: SwipedItem?
     @State private var pendingRatedTitle: String = ""
     @State private var detailItem: MediaItem?
+    @State private var persistenceErrorMessage: String?
     @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
+
+    init(mediaService: any MediaServiceProtocol = TMDBService()) {
+        _viewModel = State(initialValue: SwipeViewModel(mediaService: mediaService))
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,7 +42,9 @@ struct SwipeView: View {
                 ZStack {
                     if viewModel.isLoading && viewModel.mediaItems.isEmpty {
                         loadingView
-                    } else if let error = viewModel.errorMessage {
+                    } else if viewModel.isOffline && viewModel.mediaItems.isEmpty {
+                        offlineView
+                    } else if let error = viewModel.errorMessage, viewModel.mediaItems.isEmpty {
                         errorView(message: error)
                     } else if viewModel.mediaItems.isEmpty && viewModel.hasReachedEnd {
                         emptyStateView
@@ -53,13 +62,19 @@ struct SwipeView: View {
                             InlineRatingPrompt(
                                 itemTitle: pendingRatedTitle,
                                 onRate: { stars in
-                                    pendingRatedItem?.personalRating = stars
-                                    try? modelContext.save()
-                                    HapticManager.seen()
-                                    withAnimation(.easeIn(duration: 0.2)) {
-                                        showRatingPrompt = false
+                                    if let item = pendingRatedItem {
+                                        do {
+                                            try SwipedItemStore(context: modelContext).setPersonalRating(stars, for: item)
+                                            HapticManager.seen()
+                                            withAnimation(.easeIn(duration: 0.2)) {
+                                                showRatingPrompt = false
+                                            }
+                                            pendingRatedItem = nil
+                                        } catch {
+                                            logger.error("Failed to save discover rating: \(error.localizedDescription)")
+                                            persistenceErrorMessage = "We couldn't save your rating. Please try again."
+                                        }
                                     }
-                                    pendingRatedItem = nil
                                 },
                                 onSkip: {
                                     withAnimation(.easeIn(duration: 0.2)) {
@@ -92,7 +107,8 @@ struct SwipeView: View {
                         pendingRatedItem = swipedItem
                         pendingRatedTitle = item.title
                         
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        Task {
+                            try? await Task.sleep(for: .seconds(0.3))
                             withAnimation(.easeOut(duration: 0.2)) {
                                 showRatingPrompt = true
                             }
@@ -115,7 +131,7 @@ struct SwipeView: View {
                 viewModel.prefetchUpcomingImages()
             }
             .onAppear {
-                viewModel.syncIncludeSwipedSetting()
+                viewModel.syncWithSettings(context: modelContext)
             }
             .overlay {
                 if !hasSeenTutorial && !viewModel.mediaItems.isEmpty {
@@ -124,6 +140,17 @@ struct SwipeView: View {
                     }
                     .transition(.opacity)
                 }
+            }
+            .alert(
+                "Couldn't Save Changes",
+                isPresented: Binding(
+                    get: { persistenceErrorMessage != nil },
+                    set: { if !$0 { persistenceErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+            } message: {
+                Text(persistenceErrorMessage ?? "Please try again.")
             }
         }
     }
@@ -148,7 +175,8 @@ struct SwipeView: View {
                         resetTriggers()
                         
                         // Brief pause for next card to settle, then show rating prompt
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        Task {
+                            try? await Task.sleep(for: .seconds(0.15))
                             withAnimation(.easeOut(duration: 0.2)) {
                                 showRatingPrompt = true
                             }
@@ -251,25 +279,19 @@ struct SwipeView: View {
     private func saveToWatchlist(item: MediaItem) {
         // Add to undo stack so the user can undo watchlist actions
         viewModel.addToUndoStack(item: item, direction: .watchlist)
-        
-        let swipedItem = SwipedItem(from: item, direction: .watchlist)
-        
-        // Store which platform the user was browsing (only for streaming methods)
-        if viewModel.selectedMethod.watchProviderID != nil {
-            swipedItem.sourcePlatform = viewModel.selectedMethod.rawValue
-        }
-        
-        modelContext.insert(swipedItem)
+
         do {
-            try modelContext.save()
+            let sourcePlatform = viewModel.selectedMethod.watchProviderID != nil
+                ? viewModel.selectedMethod.rawValue
+                : nil
+            _ = try SwipedItemStore(context: modelContext)
+                .saveToWatchlist(from: item, sourcePlatform: sourcePlatform)
+            // Remove the card from the stack and treat it as swiped
+            viewModel.removeCardFromStack(item: item)
         } catch {
-            #if DEBUG
-            print("Error saving watchlist item: \(error)")
-            #endif
+            logger.error("Failed to save watchlist item: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't save this item to your watchlist. Please try again."
         }
-        
-        // Remove the card from the stack and treat it as swiped
-        viewModel.removeCardFromStack(item: item)
     }
     
     // MARK: - Loading View
@@ -281,6 +303,38 @@ struct SwipeView: View {
             Text("Loading...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+        }
+    }
+    
+    // MARK: - Offline View
+    
+    private var offlineView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 50))
+                .foregroundStyle(.secondary)
+            
+            Text("You're Offline")
+                .font(.title2.weight(.semibold))
+            
+            Text("Connect to the internet to\ndiscover new titles.\nYour library is still available!")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            
+            Button {
+                Task {
+                    await viewModel.resetAndLoadContent()
+                }
+            } label: {
+                Label("Try Again", systemImage: "arrow.clockwise")
+                    .font(.body.weight(.semibold))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+            }
         }
     }
     

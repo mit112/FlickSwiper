@@ -17,43 +17,6 @@ extension View {
             self
         }
     }
-    
-    /// Apply spring animation
-    func springAnimation() -> some View {
-        self.animation(.spring(response: 0.4, dampingFraction: 0.7), value: UUID())
-    }
-}
-
-// MARK: - Color Extensions
-
-extension Color {
-    /// App accent color
-    static let appAccent = Color.accentColor
-    
-    /// Success color (green)
-    static let success = Color.green
-    
-    /// Skip color (gray)
-    static let skip = Color.gray
-}
-
-// MARK: - String Extensions
-
-extension String {
-    /// Returns the year portion of a date string (YYYY-MM-DD format)
-    var yearFromDate: String? {
-        guard self.count >= 4 else { return nil }
-        return String(self.prefix(4))
-    }
-}
-
-// MARK: - Optional Extensions
-
-extension Optional where Wrapped == String {
-    /// Returns true if the string is nil or empty
-    var isNilOrEmpty: Bool {
-        self?.isEmpty ?? true
-    }
 }
 
 // MARK: - Array Extensions
@@ -68,18 +31,27 @@ extension Array {
 // MARK: - Date Extensions
 
 extension Date {
-    /// Format date as relative string
-    var relativeFormatted: String {
+    /// Shared formatters — `DateFormatter` is expensive to create, so these are reused.
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return formatter.localizedString(for: self, relativeTo: Date())
-    }
+        return formatter
+    }()
     
-    /// Format date as medium style
-    var mediumFormatted: String {
+    private static let mediumDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
-        return formatter.string(from: self)
+        return formatter
+    }()
+    
+    /// Format date as relative string (e.g. "2 days ago")
+    var relativeFormatted: String {
+        Self.relativeDateFormatter.localizedString(for: self, relativeTo: Date())
+    }
+    
+    /// Format date as medium style (e.g. "Feb 15, 2026")
+    var mediumFormatted: String {
+        Self.mediumDateFormatter.string(from: self)
     }
 }

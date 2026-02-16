@@ -25,6 +25,7 @@ enum Constants {
         static let selectedDiscoveryMethod = "selectedDiscoveryMethod"
         static let contentTypeFilter = "contentTypeFilter"
         static let hasSeenSwipeTutorial = "hasSeenSwipeTutorial"
+        static let includeSwipedItems = "includeSwipedItems"
     }
     
     // MARK: - UI
@@ -33,5 +34,12 @@ enum Constants {
         static let cardCornerRadius: CGFloat = 20
         static let gridSpacing: CGFloat = 12
         static let prefetchThreshold: Int = 5
+    }
+    
+    // MARK: - URLs
+    
+    enum URLs {
+        static let privacyPolicy = URL(string: "https://mit112.github.io/FlickSwiper/")!
+        static let contactEmail = URL(string: "mailto:mitsheth82@gmail.com")!
     }
 }

@@ -100,3 +100,30 @@ SwiftData queries are scoped carefully to avoid mixing seen and watchlist items:
 ## Testing
 
 The codebase includes `MediaServiceProtocol` with a `MockMediaService` actor for dependency injection. ViewModels accept the protocol, making it possible to test discovery and search logic with controlled data. The mock supports configurable responses, error simulation, and call tracking.
+
+## Security: API Key Storage
+
+### How it works
+
+The TMDB API Read Access Token is stored in `Config/Secrets.xcconfig`, which is gitignored. The xcconfig value is referenced in `Info.plist` via the `$(TMDB_API_TOKEN)` variable, and read at runtime with `Bundle.main.object(forInfoDictionaryKey:)`.
+
+### Known trade-off
+
+`Info.plist` is an unencrypted plaintext file inside the `.app` bundle. Anyone who downloads the IPA can extract it and read the token. **This is accepted** for the following reasons:
+
+1. **Read-only token.** TMDB v4 Read Access Tokens only allow fetching public data (movie details, search, trending). They cannot modify anything on TMDB.
+2. **Rate-limited.** TMDB enforces per-token rate limits (~40 req/10s). Abuse gets the token throttled, not the account compromised.
+3. **Revocable.** If the token is abused, it can be rotated in seconds at themoviedb.org/settings/api and shipped in the next build.
+4. **No user data exposure.** The token grants no access to user-specific data — FlickSwiper has no TMDB user accounts.
+5. **Zero-dependency goal.** Alternatives (obfuscation libs, backend proxy, CloudKit key storage) add complexity disproportionate to the risk for a read-only public API key.
+
+### What this is NOT acceptable for
+
+This pattern must **not** be reused for tokens that can write data, access user accounts, cost money (payment APIs), or expose PII. Those require Keychain storage at minimum, ideally a server-side proxy so the key never ships in the client binary.
+
+### Mitigation steps taken
+
+- `Secrets.xcconfig` is in `.gitignore` — the real token never enters version control.
+- `Secrets.xcconfig.template` documents setup without exposing the real value.
+- `resolveAPIToken()` validates the token at runtime and throws `TMDBError.noAPIKey` if it's missing, preventing silent failures.
+- The token should be rotated before each public release if the repo is public.

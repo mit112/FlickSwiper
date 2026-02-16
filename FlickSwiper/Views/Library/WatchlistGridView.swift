@@ -121,12 +121,13 @@ struct WatchlistGridView: View {
     }
     
     private func markAsSeen(_ item: SwipedItem) {
-        item.swipeDirection = SwipedItem.SwipeDirection.seen.rawValue
+        item.swipeDirection = SwipedItem.directionSeen
         item.dateSwiped = Date()
         try? modelContext.save()
         
         ratingItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        Task {
+            try? await Task.sleep(for: .seconds(0.3))
             showWatchlistRating = true
         }
     }

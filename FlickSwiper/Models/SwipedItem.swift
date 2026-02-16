@@ -94,14 +94,26 @@ final class SwipedItem: Identifiable {
         case watchlist
     }
     
+    // MARK: - Direction String Constants
+    // #Predicate macros require string literals, so these can't be used directly
+    // in @Query filters. They exist as the single source of truth for non-predicate
+    // comparisons and as a reference for anyone writing new predicates.
+    
+    /// Raw string for "seen" direction — use in non-predicate comparisons
+    static let directionSeen = SwipeDirection.seen.rawValue        // "seen"
+    /// Raw string for "skipped" direction — use in non-predicate comparisons
+    static let directionSkipped = SwipeDirection.skipped.rawValue  // "skipped"
+    /// Raw string for "watchlist" direction — use in non-predicate comparisons
+    static let directionWatchlist = SwipeDirection.watchlist.rawValue // "watchlist"
+    
     /// Whether this item was marked as "seen"
     var isSeen: Bool {
-        swipeDirection == SwipeDirection.seen.rawValue
+        swipeDirection == Self.directionSeen
     }
     
     /// Whether this item is in the watchlist
     var isWatchlist: Bool {
-        swipeDirection == SwipeDirection.watchlist.rawValue
+        swipeDirection == Self.directionWatchlist
     }
     
     // MARK: - Computed Properties (for SeenListView compatibility)
@@ -142,10 +154,5 @@ final class SwipedItem: Identifiable {
         guard let string = genreIDsString else { return [] }
         return string.split(separator: ",").compactMap { Int($0) }
     }
-    
-    /// Convenience get/set for personalRating
-    var ratingStars: Int? {
-        get { personalRating }
-        set { personalRating = newValue }
-    }
+
 }

@@ -32,7 +32,8 @@ struct RetryAsyncImage: View {
                         .onAppear {
                             attempts += 1
                             // Force AsyncImage to retry by changing its identity
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.0))
                                 id = UUID()
                             }
                         }

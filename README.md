@@ -2,9 +2,9 @@
 
 **A gesture-driven iOS app for discovering, tracking, and organizing movies & TV shows.**
 
-[![Build](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml/badge.svg)](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
-[![SwiftUI](https://img.shields.io/badge/SwiftUI-5-blue.svg)](https://developer.apple.com/swiftui/)
+[![Build & Test](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml/badge.svg)](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml)
+[![Swift](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
+[![SwiftUI](https://img.shields.io/badge/SwiftUI-blue.svg)](https://developer.apple.com/swiftui/)
 [![SwiftData](https://img.shields.io/badge/SwiftData-1.0-green.svg)](https://developer.apple.com/documentation/swiftdata)
 [![iOS](https://img.shields.io/badge/iOS-17.0%2B-lightgrey.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -46,7 +46,15 @@ I wanted a quick, tactile way to log what I've watched without the overhead of f
 - **Protocol-Oriented Service Layer** — `MediaServiceProtocol` with a `MockMediaService` ready for unit testing.
 - **Accessibility** — Custom accessibility actions on swipe cards, descriptive labels on all interactive elements, proper modifier ordering.
 
-For a deeper look at architecture decisions, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For a deeper look at architecture decisions, see [ARCHITECTURE.md](ARCHITECTURE.md). For a history of changes, see [CHANGELOG.md](CHANGELOG.md).
+
+## System Design At a Glance
+
+- **UI architecture**: SwiftUI + MVVM with `@Observable` view models and actor-isolated service calls.
+- **Data ownership**: `SwipedItemStore` centralizes write operations so views stay focused on presentation.
+- **Persistence**: SwiftData with a versioned migration plan (`FlickSwiperMigrationPlan`) and startup recovery fallback.
+- **Networking**: `TMDBService` actor handles API requests, retry-on-429 behavior, and model mapping to `MediaItem`.
+- **Testing strategy**: XCTest coverage for models, decoding, service/view-model behavior, and persistence mutation paths via in-memory SwiftData.
 
 ## Project Structure
 
@@ -68,13 +76,15 @@ FlickSwiper/
 │   ├── SwipeViewModel.swift          # Discovery feed, swipe logic, filtering, prefetch
 │   └── SearchViewModel.swift         # Debounced search with Task cancellation
 ├── Views/
-│   ├── SwipeView.swift               # Card stack, rating prompt, undo
-│   ├── MovieCardView.swift           # Swipeable card with gestures + overlays
+│   ├── Discover/                     # Swipe cards, filters, rating prompt, tutorial
+│   │   ├── SwipeView.swift           # Card stack, rating prompt, undo
+│   │   ├── MovieCardView.swift       # Swipeable card with gestures + overlays
+│   │   └── Pickers/                  # Discovery method, genre pickers
+│   ├── Library/                      # Collections, lists, watchlist, grids
+│   │   ├── FlickSwiperHomeView.swift # Library tab — watchlist, collections, lists
+│   │   └── FilteredGridView.swift    # Reusable grid with edit mode + share
 │   ├── SearchView.swift              # Search tab with library-aware results
-│   ├── FlickSwiperHomeView.swift     # Library tab — watchlist, collections, lists
-│   ├── FilteredGridView.swift        # Reusable grid with edit mode + share
-│   ├── 15+ additional views...       # Detail views, pickers, cards, sheets
-│   └── Pickers/                      # Discovery method, genre, year pickers
+│   └── SettingsView.swift            # Settings, stats, reset actions
 ├── Services/
 │   ├── TMDBService.swift             # Actor-based TMDB API client
 │   └── MediaServiceProtocol.swift    # Protocol + mock for testing
@@ -91,7 +101,7 @@ FlickSwiper/
 ### Requirements
 
 - iOS 17.0+
-- Xcode 15.0+
+- Xcode 16.0+
 - A free [TMDB API Key](https://www.themoviedb.org/settings/api)
 
 ### Setup
@@ -116,7 +126,7 @@ FlickSwiper/
 
 | Layer | Technology |
 |-------|-----------|
-| UI | SwiftUI 5 |
+| UI | SwiftUI |
 | Persistence | SwiftData with versioned schema migration |
 | Networking | URLSession + async/await, actor isolation |
 | API | TMDB v3 (movies, TV, search, streaming providers) |

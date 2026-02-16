@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Unified Media Item for UI
 
 /// A unified type representing both movies and TV shows for use in the UI
-struct MediaItem: Identifiable, Hashable, Sendable {
+struct MediaItem: Identifiable, Sendable {
     let id: Int
     let title: String
     let overview: String
@@ -52,6 +52,23 @@ struct MediaItem: Identifiable, Hashable, Sendable {
     var ratingText: String? {
         guard let rating = rating, rating > 0 else { return nil }
         return String(format: "%.1f", rating)
+    }
+}
+
+// MARK: - Identity
+
+/// Identity is based on `uniqueID` (mediaType + TMDB ID), matching how the app
+/// deduplicates items across discovery, filtering, and SwiftData persistence.
+extension MediaItem: Equatable {
+    static func == (lhs: MediaItem, rhs: MediaItem) -> Bool {
+        lhs.id == rhs.id && lhs.mediaType == rhs.mediaType
+    }
+}
+
+extension MediaItem: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(mediaType)
     }
 }
 

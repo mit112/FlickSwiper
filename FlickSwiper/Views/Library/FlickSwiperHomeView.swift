@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// New landing page for the "Library" tab
 /// Shows smart collections, user lists, recently added, and a "View All" link
 struct FlickSwiperHomeView: View {
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "LibraryView")
     @Query(filter: #Predicate<SwipedItem> { $0.swipeDirection == "seen" },
            sort: \SwipedItem.dateSwiped, order: .reverse)
     private var seenItems: [SwipedItem]
@@ -21,6 +23,7 @@ struct FlickSwiperHomeView: View {
     @State private var selectedWatchlistItem: SwipedItem?
     @State private var showWatchlistRating = false
     @State private var ratingItem: SwipedItem?
+    @State private var persistenceErrorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -55,22 +58,28 @@ struct FlickSwiperHomeView: View {
                 WatchlistItemDetailView(
                     item: item,
                     onMarkAsSeen: {
-                        // Convert to seen and update date so it appears in Recently Added
-                        item.swipeDirection = SwipedItem.SwipeDirection.seen.rawValue
-                        item.dateSwiped = Date()
-                        try? modelContext.save()
-                        
-                        selectedWatchlistItem = nil
-                        
-                        ratingItem = item
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showWatchlistRating = true
+                        do {
+                            try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+                            selectedWatchlistItem = nil
+
+                            ratingItem = item
+                            Task {
+                                try? await Task.sleep(for: .seconds(0.3))
+                                showWatchlistRating = true
+                            }
+                        } catch {
+                            logger.error("Failed to move watchlist item to seen: \(error.localizedDescription)")
+                            persistenceErrorMessage = "We couldn't update this watchlist item. Please try again."
                         }
                     },
                     onRemove: {
-                        modelContext.delete(item)
-                        try? modelContext.save()
-                        selectedWatchlistItem = nil
+                        do {
+                            try SwipedItemStore(context: modelContext).remove(item)
+                            selectedWatchlistItem = nil
+                        } catch {
+                            logger.error("Failed to remove watchlist item: \(error.localizedDescription)")
+                            persistenceErrorMessage = "We couldn't remove this watchlist item. Please try again."
+                        }
                     }
                 )
                 .presentationDetents([.medium, .large])
@@ -83,6 +92,17 @@ struct FlickSwiperHomeView: View {
                         ratingItem = nil
                     }
                 }
+            }
+            .alert(
+                "Couldn't Save Changes",
+                isPresented: Binding(
+                    get: { persistenceErrorMessage != nil },
+                    set: { if !$0 { persistenceErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+            } message: {
+                Text(persistenceErrorMessage ?? "Please try again.")
             }
         }
     }
@@ -98,7 +118,7 @@ struct FlickSwiperHomeView: View {
                 }
                 
                 // Smart Collections
-                SmartCollectionsSection(seenItems: seenItems)
+                SmartCollectionsSection()
                 
                 // My Lists
                 MyListsSection()
