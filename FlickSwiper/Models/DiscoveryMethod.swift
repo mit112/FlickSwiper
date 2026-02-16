@@ -48,12 +48,12 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     }
     
     /// Whether this is a streaming service filter
-    var isStreamingService: Bool {
+    nonisolated var isStreamingService: Bool {
         watchProviderID != nil
     }
     
     /// Whether this is a free streaming service
-    var isFreeService: Bool {
+    nonisolated var isFreeService: Bool {
         switch self {
         case .tubi, .plutoTV: return true
         default: return false
@@ -61,7 +61,7 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     }
     
     /// SF Symbol icon name for the discovery method (never empty; use for placeholders and non-streaming methods)
-    var iconName: String {
+    nonisolated var iconName: String {
         let name: String
         switch self {
         case .topRated: name = "star.fill"
@@ -79,7 +79,7 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     /// TMDB logo path for streaming providers (nil for non-streaming methods).
     /// Refresh from: GET https://api.themoviedb.org/3/watch/providers/movie?language=en-US&watch_region=US
     /// Provider IDs: Netflix 8, Max 1899, Paramount+ 531, Peacock 386.
-    var logoPath: String? {
+    nonisolated var logoPath: String? {
         switch self {
         case .netflix: return "/wwemzKWzjKYJFfCeiB57q3r4Bcm.png"
         case .amazonPrime: return "/emthp39XA2YScoYL1p0sdbAH2WA.jpg"
@@ -97,13 +97,13 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     }
     
     /// Full URL for provider logo (TMDB image base); nil for non-streaming methods
-    var logoURL: URL? {
+    nonisolated var logoURL: URL? {
         guard let path = logoPath else { return nil }
         return URL(string: "https://image.tmdb.org/t/p/w92\(path)")
     }
     
     /// Group label for organizing in UI
-    var category: Category {
+    nonisolated var category: Category {
         if isFreeService {
             return .free
         }
@@ -124,7 +124,7 @@ enum DiscoveryMethod: String, CaseIterable, Identifiable, Codable, Sendable {
     }
     
     /// All methods grouped by category
-    static var grouped: [(category: Category, methods: [DiscoveryMethod])] {
+    nonisolated static var grouped: [(category: Category, methods: [DiscoveryMethod])] {
         Category.allCases.compactMap { category in
             let methods = allCases.filter { $0.category == category }
             return methods.isEmpty ? nil : (category, methods)
