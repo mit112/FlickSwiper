@@ -109,7 +109,7 @@ final class SwipedItemStoreTests: XCTestCase {
         XCTAssertEqual(stored.first?.personalRating, 5)
     }
 
-    func testDuplicateUniqueIDThrowsSaveError() throws {
+    func testDuplicateUniqueIDUpsertsInsteadOfDuplicating() throws {
         let item = MediaItem(
             id: 104,
             title: "Duplicated",
@@ -121,6 +121,15 @@ final class SwipedItemStoreTests: XCTestCase {
         )
 
         _ = try store.markAsSeen(from: item)
-        XCTAssertThrowsError(try store.markAsSeen(from: item))
+        _ = try store.markAsSeen(from: item)
+
+        // SwiftData's @Attribute(.unique) performs an upsert — no error,
+        // but only one record should exist for this uniqueID.
+        let expectedID = item.uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == expectedID }
+        )
+        let stored = try context.fetch(descriptor)
+        XCTAssertEqual(stored.count, 1, "Duplicate insert should upsert, not create a second record")
     }
 }
