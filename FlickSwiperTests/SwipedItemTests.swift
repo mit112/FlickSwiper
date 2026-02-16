@@ -8,6 +8,7 @@ import SwiftData
 // SwipedItem is a SwiftData @Model but its computed properties can be
 // tested without a persistent context.
 
+@MainActor
 final class SwipedItemTests: XCTestCase {
     
     // MARK: - Initialization

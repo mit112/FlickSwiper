@@ -6,6 +6,7 @@ import XCTest
 // Tests MediaItem's conversion initializers (from TMDB models)
 // and computed properties (posterURL, thumbnailURL, releaseYear, ratingText).
 
+@MainActor
 final class MediaItemTests: XCTestCase {
     
     // MARK: - Conversion from TMDBMovie

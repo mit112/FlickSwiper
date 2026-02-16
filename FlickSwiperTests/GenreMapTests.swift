@@ -5,6 +5,7 @@ import XCTest
 //
 // Validates the static genre lookup tables used by smart collections.
 
+@MainActor
 final class GenreMapTests: XCTestCase {
     
     func testKnownMovieGenreLookup() {

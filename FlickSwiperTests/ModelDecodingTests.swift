@@ -7,6 +7,7 @@ import XCTest
 // including edge cases like missing optional fields and null values.
 // These tests use raw JSON strings to simulate real API responses.
 
+@MainActor
 final class ModelDecodingTests: XCTestCase {
     
     private let decoder = JSONDecoder()

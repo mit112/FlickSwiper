@@ -5,6 +5,7 @@ import XCTest
 //
 // Validates streaming provider IDs, icons, logos, and grouped coverage.
 
+@MainActor
 final class DiscoveryMethodTests: XCTestCase {
     
     func testStreamingMethodsHaveProviderIDs() {

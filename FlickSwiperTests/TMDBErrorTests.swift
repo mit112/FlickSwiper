@@ -6,6 +6,7 @@ import XCTest
 // Validates that every TMDBError case produces a non-nil, user-friendly
 // error description. These strings are displayed directly in the UI.
 
+@MainActor
 final class TMDBErrorTests: XCTestCase {
     
     func testAllErrorCasesHaveDescriptions() {
