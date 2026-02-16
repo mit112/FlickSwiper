@@ -101,8 +101,9 @@ final class SwipedItemStoreTests: XCTestCase {
         let saved = try store.markAsSeen(from: item)
         try store.setPersonalRating(5, for: saved)
 
+        let expectedID = item.uniqueID
         let descriptor = FetchDescriptor<SwipedItem>(
-            predicate: #Predicate { $0.uniqueID == item.uniqueID }
+            predicate: #Predicate { $0.uniqueID == expectedID }
         )
         let stored = try context.fetch(descriptor)
         XCTAssertEqual(stored.first?.personalRating, 5)
