@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "3P89U4WZAB.com.mitsheth.FlickSwiper",
+        "paths": ["/FlickSwiper/list/*"]
+      }
+    ]
+  }
+}

@@ -19,6 +19,8 @@
         p { margin: 8px 0; }
         .updated { color: #888; font-size: 0.9em; margin-bottom: 24px; }
         a { color: #0066cc; }
+        ul { margin: 8px 0; padding-left: 24px; }
+        li { margin: 4px 0; }
         @media (prefers-color-scheme: dark) {
             body { background: #1a1a1a; color: #e0e0e0; }
             h2 { color: #f0f0f0; }
@@ -28,29 +30,54 @@
 </head>
 <body>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: February 9, 2026</p>
+    <p class="updated">Last updated: February 17, 2026</p>
 
     <h2>Overview</h2>
-    <p>FlickSwiper is a movie and TV show tracking app. All your data — your "already seen" list, watchlist, swipe history, ratings, and custom lists — is stored locally on your device. We do not collect, transmit, or store any personal information.</p>
+    <p>FlickSwiper is a movie and TV show discovery and tracking app. Your core data — your seen list, watchlist, swipe history, ratings, and custom lists — is stored locally on your device. FlickSwiper also offers optional social features (list sharing and following) that require an account and store limited data on our servers.</p>
 
-    <h2>Data Storage</h2>
-    <p>All app data is stored on your device using Apple's SwiftData framework. We do not operate any servers or databases. Your data is not backed up to any cloud service operated by us. Standard iCloud device backups may include app data per your Apple settings.</p>
+    <h2>Local Data Storage</h2>
+    <p>All app data is stored on your device using Apple's SwiftData framework. Your seen items, watchlist, ratings, and custom lists exist only on your device. We do not have access to this data. Standard iCloud device backups may include app data per your Apple settings.</p>
+
+    <h2>Account &amp; Social Features (Optional)</h2>
+    <p>FlickSwiper offers optional social features that let you publish lists and follow lists shared by friends. These features require signing in with your Apple ID. You are never required to create an account — all core features work without one.</p>
+    <p>If you choose to sign in, we collect and store the following data using Google Firebase:</p>
+    <ul>
+        <li><strong>User ID:</strong> A unique identifier provided by Firebase Authentication, linked to your Apple ID. Used to identify your account.</li>
+        <li><strong>Display name:</strong> Your name as provided by Apple during sign-in, or a name you choose. Shown to other users who view your shared lists (e.g., "Best Horror Movies by Alex").</li>
+        <li><strong>Email address:</strong> If provided by Apple during sign-in (you may choose to hide it). Stored by Firebase Authentication for account recovery purposes. Not displayed to other users.</li>
+        <li><strong>Published list data:</strong> When you publish a list, its name and contents (movie/TV show titles and identifiers) are stored on our servers so others can follow it.</li>
+        <li><strong>Follow relationships:</strong> When you follow someone's list, a record of that relationship is stored on our servers.</li>
+    </ul>
+    <p>We do not collect your location, contacts, photos, browsing history, or any data beyond what is described above.</p>
+
+    <h2>How We Use Your Data</h2>
+    <p>Account data is used solely to provide the list sharing and following features. We do not use your data for advertising, marketing, analytics, or any purpose other than the app's functionality. We do not sell, share, or transfer your data to any third party for their own purposes.</p>
+
+    <h2>Data Retention &amp; Deletion</h2>
+    <p>You can delete your account at any time from Settings within the app. When you delete your account:</p>
+    <ul>
+        <li>Your user profile is permanently deleted from our servers.</li>
+        <li>All lists you published are deactivated (followers will see them as "no longer available").</li>
+        <li>All your follow relationships are deleted.</li>
+        <li>Your Firebase Authentication account is permanently deleted.</li>
+        <li>Your local data (seen items, watchlist, ratings, custom lists) is not affected and remains on your device.</li>
+    </ul>
+    <p>You can also request account deletion by contacting us at the email below.</p>
 
     <h2>Third-Party Services</h2>
-    <p>This app uses The Movie Database (TMDB) API to retrieve movie and TV show information including titles, descriptions, posters, and ratings. When the app fetches this information, standard network requests are made to TMDB's servers, which may log technical data such as your IP address in accordance with their own privacy policy.</p>
-    <p>We encourage you to review TMDB's privacy policy at: <a href="https://www.themoviedb.org/privacy-policy">themoviedb.org/privacy-policy</a></p>
-    <p>We do not send any personal information, usage data, or device identifiers to TMDB or any other third party.</p>
+    <p><strong>The Movie Database (TMDB):</strong> This app uses the TMDB API to retrieve movie and TV show information including titles, descriptions, posters, and ratings. When the app fetches this information, standard network requests are made to TMDB's servers, which may log technical data such as your IP address in accordance with their own privacy policy. We do not send any personal information to TMDB. Review TMDB's privacy policy at: <a href="https://www.themoviedb.org/privacy-policy">themoviedb.org/privacy-policy</a></p>
+    <p><strong>Google Firebase:</strong> If you create an account, we use Firebase Authentication for sign-in and Cloud Firestore for storing published lists and follow relationships. Google's servers are located in the United States. Firebase's privacy practices are described in the <a href="https://firebase.google.com/support/privacy">Firebase Privacy and Security documentation</a> and the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>
 
     <h2>Analytics and Tracking</h2>
-    <p>We do not use any analytics services, crash reporting tools, advertising SDKs, or tracking technologies of any kind.</p>
+    <p>We do not use any analytics services, crash reporting tools, advertising SDKs, or tracking technologies of any kind. We do not track your usage of the app.</p>
 
     <h2>Children's Privacy</h2>
-    <p>We do not knowingly collect any information from anyone, including children under 13.</p>
+    <p>FlickSwiper is not directed at children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has created an account, please contact us and we will delete it.</p>
 
     <h2>Changes to This Policy</h2>
     <p>If we update this policy, we will post the revised version at this URL with an updated date.</p>
 
     <h2>Contact</h2>
-    <p>If you have questions about this privacy policy, you can reach us at: <a href="mailto:mitsheth82@gmail.com">mitsheth82@gmail.com</a></p>
+    <p>If you have questions about this privacy policy or want to request data deletion, you can reach us at: <a href="mailto:mitsheth82@gmail.com">mitsheth82@gmail.com</a></p>
 </body>
 </html>

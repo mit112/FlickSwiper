@@ -1,0 +1,78 @@
+// ============================================================
+// FlickSwiper — Firestore Security Rules
+// ============================================================
+//
+// HOW TO DEPLOY:
+// 1. Go to Firebase Console → Firestore Database → Rules
+// 2. Delete the existing content
+// 3. Paste this entire file
+// 4. Click "Publish"
+//
+// COMPOSITE INDEX NEEDED:
+// After publishing rules, go to Firestore → Indexes → Composite
+// Create: Collection = "follows", Fields = followerUID ASC + followedAt DESC
+// (Firebase may auto-prompt this when you first query)
+//
+// ============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------
+    // Users: any authenticated user can read any profile
+    // (needed to display owner names on followed lists).
+    // Only the profile owner can write their own document.
+    // ---------------------------------------------------------
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.auth.uid == uid;
+      allow update: if request.auth != null
+                    && request.auth.uid == uid;
+      allow delete: if request.auth != null
+                    && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------
+    // Published Lists: any authenticated user can read
+    // (needed for following via shared links).
+    // Only the list owner can create, update, or delete.
+    // ---------------------------------------------------------
+    match /publishedLists/{listId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUID == request.auth.uid
+                    && request.resource.data.name is string
+                    && request.resource.data.items is list;
+
+      allow update: if request.auth != null
+                    && resource.data.ownerUID == request.auth.uid;
+
+      allow delete: if request.auth != null
+                    && resource.data.ownerUID == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------
+    // Follows: any authenticated user can read
+    // (needed for checking "am I following this list?").
+    // Users can only create follows for themselves.
+    // Users can only delete their own follows.
+    // No updates allowed (follows are immutable — create or delete).
+    // ---------------------------------------------------------
+    match /follows/{followId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+                    && request.resource.data.followerUID == request.auth.uid
+                    && request.resource.data.listID is string;
+
+      allow delete: if request.auth != null
+                    && resource.data.followerUID == request.auth.uid;
+
+      // No update — follows are create-or-delete only
+      allow update: if false;
+    }
+  }
+}
