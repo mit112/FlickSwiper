@@ -92,8 +92,8 @@ final class SearchViewModelTests: XCTestCase {
         viewModel.searchText = "Test"
         viewModel.search()
         
-        // Wait for debounce + error
-        try? await Task.sleep(for: .milliseconds(600))
+        // Wait for debounce + error (generous for CI simulators)
+        try? await Task.sleep(for: .milliseconds(1000))
         
         XCTAssertNotNil(viewModel.errorMessage)
         XCTAssertTrue(viewModel.hasSearched)
