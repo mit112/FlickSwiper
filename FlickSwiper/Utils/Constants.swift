@@ -26,6 +26,7 @@ enum Constants {
         static let contentTypeFilter = "contentTypeFilter"
         static let hasSeenSwipeTutorial = "hasSeenSwipeTutorial"
         static let includeSwipedItems = "includeSwipedItems"
+        static let ratingDisplayOption = "ratingDisplayOption"
     }
     
     // MARK: - UI

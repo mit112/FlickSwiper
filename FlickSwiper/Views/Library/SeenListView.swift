@@ -138,12 +138,19 @@ struct SeenListView: View {
 struct SeenItemCard: View {
     let item: SwipedItem
     
+    @AppStorage(Constants.StorageKeys.ratingDisplayOption)
+    private var ratingDisplayRaw: String = RatingDisplayOption.tmdb.rawValue
+    
+    private var ratingDisplay: RatingDisplayOption {
+        RatingDisplayOption(rawValue: ratingDisplayRaw) ?? .tmdb
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Poster (thumbnail URL; RetryAsyncImage retries on failure, prefetch warms w185 cache)
+            // Poster
             RetryAsyncImage(url: item.thumbnailURL)
-            .aspectRatio(2/3, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+                .aspectRatio(2/3, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             
             // Title
             Text(item.title)
@@ -153,7 +160,6 @@ struct SeenItemCard: View {
             
             // Metadata
             HStack(spacing: 4) {
-                // Media type icon
                 Image(systemName: item.mediaTypeEnum == .movie ? "film" : "tv")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -166,21 +172,73 @@ struct SeenItemCard: View {
                 
                 Spacer()
                 
-                if let rating = item.ratingText {
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.yellow)
-                        Text(rating)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                ratingView
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(item.title), \(item.mediaTypeEnum.displayName), \(item.releaseYear ?? "Unknown year")")
+        .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
+    }
+    
+    // MARK: - Rating View
+    
+    @ViewBuilder
+    private var ratingView: some View {
+        switch ratingDisplay {
+        case .tmdb:
+            if let rating = item.ratingText {
+                HStack(spacing: 2) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.yellow)
+                    Text(rating)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .personal:
+            if let stars = item.personalRating {
+                HStack(spacing: 2) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color.accentColor)
+                    Text("\(stars)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("\u{2014}")
+                    .font(.caption2)
+                    .foregroundStyle(Color(.tertiaryLabel))
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+    
+    // MARK: - Accessibility
+    
+    private var accessibilityText: String {
+        var parts: [String] = [
+            item.title,
+            item.mediaTypeEnum.displayName,
+            item.releaseYear ?? "Unknown year"
+        ]
+        switch ratingDisplay {
+        case .tmdb:
+            if let rating = item.ratingText {
+                parts.append("rated \(rating) out of 10")
+            }
+        case .personal:
+            if let stars = item.personalRating {
+                parts.append("your rating \(stars) out of 5")
+            } else {
+                parts.append("not yet rated")
+            }
+        case .none:
+            break
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
