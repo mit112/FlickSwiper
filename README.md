@@ -29,11 +29,11 @@ I wanted a quick, tactile way to log what I've watched without the overhead of f
 
 **Discover** — Browse trending, popular, top-rated, now playing, upcoming, and 11 streaming services. Filter by genre, year range, and content type. Sort streaming catalogs by popularity, rating, release date, or alphabetically.
 
-**Swipe & Rate** — Swipe right (seen), left (skip), or up (watchlist). After marking something as seen, an inline rating prompt (1–5 stars) appears with a smooth scale+opacity transition over a dimmed card stack.
+**Swipe & Rate** — Swipe right (seen), left (skip), or up (watchlist). Haptic feedback on threshold crossing and velocity-based fly-off animations. After marking something as seen, an inline rating prompt (1–5 stars) appears with spring-animated star selection.
 
-**Search** — Debounced TMDB search with instant results. Green checkmarks and blue bookmarks indicate items already in your library or watchlist.
+**Search** — Debounced TMDB search with instant results. Green checkmarks and amber bookmarks indicate items already in your library or watchlist.
 
-**Library** — Smart collections auto-generated from your data (favorites, genres, platforms, recently added). Create custom lists, add items individually or in bulk via a full-screen selectable grid. Apple-style edit mode with multi-select, bulk delete, and share.
+**Library** — Smart collections auto-generated from your data (favorites, genres, platforms, recently added). Create custom lists, add items individually or in bulk via a full-screen selectable grid. Apple-style edit mode with multi-select, bulk delete, and share. Configurable rating display (TMDB, personal, or none) under posters.
 
 **Watchlist → Seen** — When you finally watch something, tap "I've Watched This" to move it from watchlist to seen with a rating prompt.
 
@@ -42,7 +42,7 @@ I wanted a quick, tactile way to log what I've watched without the overhead of f
 - **SwiftData with Versioned Schema Migration** — V1→V2 lightweight migration adds rating, genre, and platform fields without data loss. UUID-based join models (`UserList` ↔ `ListEntry` ↔ `SwipedItem`) avoid SwiftData relationship pitfalls.
 - **Actor-Isolated Networking** — `TMDBService` is an `actor`, ensuring thread-safe API access. Handles 429 rate limiting with automatic retry using the `Retry-After` header.
 - **Gesture-Driven Animation Orchestration** — Card swipe animations in three directions with precise timing between fly-off animation (0.2s delay), array mutation, and rating prompt presentation to prevent visual artifacts.
-- **Image Caching & Prefetch** — Enlarged `URLCache` (50MB memory / 200MB disk) with a custom `RetryAsyncImage` wrapper that retries failed loads. Prefetches both w500 posters and w185 thumbnails.
+- **Image Caching & Prefetch** — Enlarged `URLCache` (50MB memory / 200MB disk) with a custom `RetryAsyncImage` wrapper that retries failed loads with shimmer loading state and fade-in transitions. Prefetches both w500 posters and w185 thumbnails.
 - **Protocol-Oriented Service Layer** — `MediaServiceProtocol` with a `MockMediaService` ready for unit testing.
 - **Accessibility** — Custom accessibility actions on swipe cards, descriptive labels on all interactive elements, proper modifier ordering.
 
@@ -71,7 +71,8 @@ FlickSwiper/
 │   ├── UserList.swift / ListEntry.swift  # Custom list models (UUID join)
 │   ├── DiscoveryMethod.swift         # Discovery methods + streaming provider config
 │   ├── Genre.swift                   # Genre model for filtering
-│   └── StreamingSortOption.swift     # Sort options for streaming content
+│   ├── StreamingSortOption.swift     # Sort options for streaming content
+│   └── RatingDisplayOption.swift     # User preference for grid card ratings
 ├── ViewModels/
 │   ├── SwipeViewModel.swift          # Discovery feed, swipe logic, filtering, prefetch
 │   └── SearchViewModel.swift         # Debounced search with Task cancellation

@@ -4,9 +4,47 @@ All notable changes to FlickSwiper, in reverse chronological order.
 
 ---
 
-## v1.3 — Social Lists & Schema Migration Fix (February 2026)
+## v1.3 — Social Lists, UI Refresh & Schema Migration Fix (February 2026)
 
-Social sharing feature and a critical fix for SwiftData schema migration that was silently wiping user data on upgrades.
+Social sharing feature, comprehensive UI/UX refresh, and a critical fix for SwiftData schema migration that was silently wiping user data on upgrades.
+
+### UI/UX Refresh
+
+Complete visual overhaul establishing a coherent design language across all screens.
+
+- **Amber accent color system** — Replaced default system blue with a custom amber accent (`#D4A04A` light / `#E8B84B` dark) in Asset Catalog with explicit dark mode variant. Propagates to tab bar, toggles, links, buttons, and all `Color.accentColor` references. Zero hardcoded `.blue` or rogue `.orange` remaining in codebase.
+
+- **Color language** — Established consistent semantic color usage: amber for brand/watchlist/interactive, green for seen/confirmed, orange for warnings, red for destructive. Applied across all screens including Discover, Library, Search, Settings, Social, and all sheets/pickers.
+
+- **Discover card improvements** — Added `Color.black` base layer preventing bleed-through during loading. Removed synopsis from card (available via info sheet). Strengthened gradient scrim (0.3→0.4, 0.8→0.85) for legibility on bright posters. SAVE swipe overlay changed from blue to amber.
+
+- **Action buttons rebalanced** — Skip/Undo/Seen buttons normalized (64/52/64pt), shadows removed (invisible on dark backgrounds), Undo darkened to `systemGray3` for visual distinction. Added `.symbolEffect(.bounce)` on all action buttons and bookmark button.
+
+- **Library collection cards** — Replaced saturated gradient cards (25+ color pairs for genres/platforms) with dark neutral `secondarySystemBackground` cards. Only "My Favorites" gets the amber accent icon; all others use `secondaryLabel`. Matching treatment for `UserListCard`. Dashed "New List" border replaced with solid matching card.
+
+- **Redundant bookmark badges removed** — Blue bookmark overlays removed from `WatchlistItemCard`, `WatchlistGridView`, and watchlist-context grids where the section title already communicates the content type.
+
+- **Settings section headers** — Forced to `Color(.secondaryLabel)` on all six sections to prevent accent tint bleed into standard iOS gray headers.
+
+- **Filter sheet unification** — Sort chips (was `Color.blue`), genre chips (was `Color.orange`), and "Clear" buttons (was `.blue`) all unified to `Color.accentColor` with `.black` text for contrast.
+
+- **Contrast fixes** — All white-on-amber text replaced with black-on-amber across 7+ files (chips, buttons, badges, picker icons). Prevents illegibility on warm accent backgrounds.
+
+- **Swipe enhancements** — Haptic feedback on threshold crossing (`HapticManager.impact(.light)`) with reset on drag-back. Velocity-based fly-off scaling distance (1×–2.5×) and spring response based on gesture speed.
+
+- **Rating prompt polish** — Stars enlarged (`.title2` → `.title`), added spring scale bounce on selection (unselected 0.9 → selected 1.15), increased spacing/padding, `.continuous` corner style.
+
+- **Poster loading shimmer** — `RetryAsyncImage` loading state replaced from static gray rectangle to animated shimmer (white gradient sweep). Success state fades in with 0.2s opacity transition.
+
+- **Star filter chips** — Rating filter labels changed from repeated stars ("★★★★★") to numeral format ("5★") for instant readability.
+
+- **Trailing scroll fade** — 24pt gradient mask on trailing edge of horizontal chip ScrollViews in `FilteredGridView`, `WatchlistGridView`, and `DiscoverFiltersSheet` to hint at off-screen content.
+
+- **Card press animation** — `PressableButtonStyle` (0.95 scale, bouncy spring) applied to `SmartCollectionCard` and `UserListCard` NavigationLinks.
+
+- **Spring animation audit** — Replaced 5 instances of `easeIn`/`easeOut` timing curves with spring animations for rating prompt show/hide and tutorial dismiss.
+
+- **Rating display toggle** — New user setting in Settings > Display to control which rating appears under posters in library grids: TMDB Rating (default, preserves existing behavior), My Rating (personal 1–5 stars in amber, "—" for unrated), or None. Stored via `@AppStorage` with `RatingDisplayOption` enum. Accessibility labels update dynamically per selection. (`RatingDisplayOption.swift`, `SeenListView.swift`, `SettingsView.swift`, `Constants.swift`)
 
 ### Critical Fix: Schema Migration
 
