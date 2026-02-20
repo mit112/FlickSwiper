@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// AsyncImage wrapper that retries on failure so transient network issues don't leave placeholders.
+/// Includes a shimmer loading state and fade-in on image load.
 struct RetryAsyncImage: View {
     let url: URL?
     let maxRetries: Int
@@ -17,18 +18,15 @@ struct RetryAsyncImage: View {
         AsyncImage(url: url) { phase in
             switch phase {
             case .empty:
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .overlay { ProgressView().scaleEffect(0.7) }
+                ShimmerView()
             case .success(let image):
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .transition(.opacity.animation(.easeIn(duration: 0.2)))
             case .failure:
                 if attempts < maxRetries {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .overlay { ProgressView().scaleEffect(0.7) }
+                    ShimmerView()
                         .onAppear {
                             attempts += 1
                             // Force AsyncImage to retry by changing its identity
@@ -57,5 +55,41 @@ struct RetryAsyncImage: View {
                 id = UUID()
             }
         }
+    }
+}
+
+// MARK: - Shimmer Loading Effect
+
+/// Animated shimmer placeholder for loading images
+private struct ShimmerView: View {
+    @State private var phase: CGFloat = -1.0
+    
+    var body: some View {
+        Rectangle()
+            .fill(Color(.systemGray6))
+            .overlay {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.white.opacity(0.08),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .offset(x: phase * 200)
+            }
+            .clipped()
+            .onAppear {
+                withAnimation(
+                    .linear(duration: 1.2)
+                    .repeatForever(autoreverses: false)
+                ) {
+                    phase = 1.0
+                }
+            }
     }
 }

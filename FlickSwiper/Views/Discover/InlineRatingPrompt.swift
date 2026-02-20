@@ -9,31 +9,35 @@ struct InlineRatingPrompt: View {
     @State private var selectedRating: Int = 0
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Text("How was it?")
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             
             Text(itemTitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
                 ForEach(1...5, id: \.self) { star in
                     Button {
-                        selectedRating = star
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) {
+                            selectedRating = star
+                        }
                         HapticManager.selectionChanged()
                         // Small delay so user sees the fill before dismissal
                         Task {
-                            try? await Task.sleep(for: .seconds(0.25))
+                            try? await Task.sleep(for: .seconds(0.3))
                             onRate(star)
                         }
                     } label: {
                         Image(systemName: "star.fill")
-                            .font(.title2)
+                            .font(.title)
                             .foregroundStyle(
                                 star <= selectedRating ? .yellow : .yellow.opacity(0.3)
                             )
+                            .scaleEffect(star <= selectedRating ? 1.15 : 0.9)
+                            .animation(.spring(response: 0.25, dampingFraction: 0.5), value: selectedRating)
                     }
                     .buttonStyle(.plain)
                 }
@@ -45,8 +49,8 @@ struct InlineRatingPrompt: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
         }
-        .padding(24)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .padding(28)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .transition(.opacity.combined(with: .scale(scale: 0.9)))
     }
 }

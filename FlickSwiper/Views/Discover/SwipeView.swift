@@ -13,6 +13,9 @@ struct SwipeView: View {
     @State private var showRatingPrompt = false
     @State private var pendingRatedItem: SwipedItem?
     @State private var pendingRatedTitle: String = ""
+    @State private var skipBounce = 0
+    @State private var seenBounce = 0
+    @State private var undoBounce = 0
     @State private var detailItem: MediaItem?
     @State private var persistenceErrorMessage: String?
     @State private var ratingPresentationTask: Task<Void, Never>?
@@ -67,7 +70,7 @@ struct SwipeView: View {
                                         do {
                                             try SwipedItemStore(context: modelContext).setPersonalRating(stars, for: item)
                                             HapticManager.seen()
-                                            withAnimation(.easeIn(duration: 0.2)) {
+                                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                                 showRatingPrompt = false
                                             }
                                             pendingRatedItem = nil
@@ -78,7 +81,7 @@ struct SwipeView: View {
                                     }
                                 },
                                 onSkip: {
-                                    withAnimation(.easeIn(duration: 0.2)) {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                         showRatingPrompt = false
                                     }
                                     pendingRatedItem = nil
@@ -94,7 +97,7 @@ struct SwipeView: View {
                 // Action buttons (Skip, Undo, Seen)
                 if !viewModel.mediaItems.isEmpty && !showRatingPrompt {
                     actionButtonsView
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 20)
                 }
             }
             .navigationTitle("Discover")
@@ -119,7 +122,7 @@ struct SwipeView: View {
                             guard !Task.isCancelled else { return }
                             guard pendingRatedItem?.uniqueID == uniqueID else { return }
                             guard canPresentDiscoverRating(for: uniqueID) else { return }
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showRatingPrompt = true
                             }
                         }
@@ -201,7 +204,7 @@ struct SwipeView: View {
                             guard !Task.isCancelled else { return }
                             guard pendingRatedItem?.uniqueID == uniqueID else { return }
                             guard canPresentDiscoverRating(for: uniqueID) else { return }
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showRatingPrompt = true
                             }
                         }
@@ -223,23 +226,24 @@ struct SwipeView: View {
     // MARK: - Action Buttons View
     
     private var actionButtonsView: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 24) {
             // Skip Button (Left)
             Button {
+                skipBounce += 1
                 triggerSwipeLeft = true
             } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "xmark")
-                        .font(.title2.weight(.bold))
+                        .font(.title3.weight(.bold))
+                        .symbolEffect(.bounce, value: skipBounce)
                     Text("Skip")
-                        .font(.caption.weight(.medium))
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(.white)
-                .frame(width: 70, height: 70)
+                .frame(width: 64, height: 64)
                 .background(
                     Circle()
-                        .fill(Color.gray.opacity(0.8))
-                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        .fill(Color(.systemGray4))
                 )
             }
             .buttonStyle(.plain)
@@ -247,20 +251,21 @@ struct SwipeView: View {
             
             // Undo Button (Center)
             Button {
+                undoBounce += 1
                 viewModel.undoLastSwipe(context: modelContext)
             } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.title3.weight(.semibold))
+                        .font(.body.weight(.semibold))
+                        .symbolEffect(.bounce, value: undoBounce)
                     Text("Undo")
                         .font(.caption2.weight(.medium))
                 }
-                .foregroundStyle(viewModel.canUndo ? .orange : .gray.opacity(0.5))
-                .frame(width: 56, height: 56)
+                .foregroundStyle(viewModel.canUndo ? Color(.label) : Color(.tertiaryLabel))
+                .frame(width: 52, height: 52)
                 .background(
                     Circle()
-                        .fill(Color.gray.opacity(0.2))
-                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        .fill(Color(.systemGray3))
                 )
             }
             .buttonStyle(.plain)
@@ -269,20 +274,21 @@ struct SwipeView: View {
             
             // Seen Button (Right)
             Button {
+                seenBounce += 1
                 triggerSwipeRight = true
             } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "checkmark")
-                        .font(.title2.weight(.bold))
+                        .font(.title3.weight(.bold))
+                        .symbolEffect(.bounce, value: seenBounce)
                     Text("Seen")
-                        .font(.caption.weight(.medium))
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(.white)
-                .frame(width: 70, height: 70)
+                .frame(width: 64, height: 64)
                 .background(
                     Circle()
                         .fill(Color.green)
-                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                 )
             }
             .buttonStyle(.plain)
@@ -353,7 +359,7 @@ struct SwipeView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(Color.accentColor, in: Capsule())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
             }
         }
     }
@@ -385,7 +391,7 @@ struct SwipeView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(Color.accentColor, in: Capsule())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
             }
         }
     }

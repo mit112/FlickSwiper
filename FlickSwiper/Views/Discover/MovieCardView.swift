@@ -23,6 +23,8 @@ struct MovieCardView: View {
 
     @State private var offset: CGSize = .zero
     @State private var rotation: Double = 0
+    @State private var hasTriggeredThreshold = false
+    @State private var bookmarkBounce = 0
 
     // MARK: - Constants (from centralized Constants)
 
@@ -52,6 +54,9 @@ struct MovieCardView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
+                // Solid black base — prevents bleed-through during loading or edge gaps
+                Color.black
+                
                 // Poster Image
                 posterImage
                 
@@ -70,12 +75,14 @@ struct MovieCardView: View {
                         HStack {
                             // Bookmark — top left
                             Button {
+                                bookmarkBounce += 1
                                 onSaveToWatchlist()
                             } label: {
                                 Image(systemName: "bookmark.fill")
                                     .font(.title)
                                     .foregroundStyle(.white)
                                     .shadow(color: .black.opacity(0.5), radius: 4)
+                                    .symbolEffect(.bounce, value: bookmarkBounce)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Save to watchlist")
@@ -207,8 +214,8 @@ struct MovieCardView: View {
             colors: [
                 .clear,
                 .clear,
-                .black.opacity(0.3),
-                .black.opacity(0.8)
+                .black.opacity(0.4),
+                .black.opacity(0.85)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -256,14 +263,7 @@ struct MovieCardView: View {
                 }
             }
             
-            // Overview (truncated)
-            if !item.overview.isEmpty {
-                Text(item.overview)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(3)
-                    .padding(.top, 4)
-            }
+
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -304,12 +304,12 @@ struct MovieCardView: View {
             // "SAVE" indicator (up swipe)
             Text("SAVE")
                 .font(.title.weight(.black))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentColor)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(.blue, lineWidth: 4)
+                        .stroke(Color.accentColor, lineWidth: 4)
                 )
                 .opacity(upSwipeProgress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -326,18 +326,36 @@ struct MovieCardView: View {
                 // Only rotate for horizontal movement
                 rotation = Double(gesture.translation.width / 20)
                     .clamped(to: -maxRotation...maxRotation)
+                
+                // Haptic "click" when crossing the commit threshold
+                let pastThreshold = abs(gesture.translation.width) > swipeThreshold ||
+                    (abs(gesture.translation.height) > abs(gesture.translation.width) && -gesture.translation.height > swipeThreshold)
+                if pastThreshold && !hasTriggeredThreshold {
+                    hasTriggeredThreshold = true
+                    HapticManager.impact(.light)
+                } else if !pastThreshold && hasTriggeredThreshold {
+                    // Reset if user drags back below threshold
+                    hasTriggeredThreshold = false
+                }
             }
             .onEnded { gesture in
                 let width = gesture.translation.width
                 let height = gesture.translation.height
+                let velocity = gesture.velocity
+                
+                // Scale fly-off by velocity: fast swipes fly further and faster
+                let speed = sqrt(velocity.width * velocity.width + velocity.height * velocity.height)
+                let velocityMultiplier = max(1.0, min(speed / 800, 2.5))
+                let springResponse = max(0.15, 0.3 / velocityMultiplier)
                 
                 // Determine dominant axis
                 let isVerticalDominant = abs(height) > abs(width)
                 
                 if isVerticalDominant && height < -swipeThreshold {
                     // Swipe up - save to watchlist
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        offset = CGSize(width: 0, height: -800)
+                    let flyDistance = -500 * velocityMultiplier
+                    withAnimation(.spring(response: springResponse, dampingFraction: 0.8)) {
+                        offset = CGSize(width: 0, height: flyDistance)
                     }
                     HapticManager.seen()
                     Task {
@@ -346,8 +364,9 @@ struct MovieCardView: View {
                     }
                 } else if !isVerticalDominant && width > swipeThreshold {
                     // Swipe right - seen
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        offset = CGSize(width: 500, height: 0)
+                    let flyDistance = 500 * velocityMultiplier
+                    withAnimation(.spring(response: springResponse, dampingFraction: 0.8)) {
+                        offset = CGSize(width: flyDistance, height: 0)
                         rotation = maxRotation
                     }
                     HapticManager.seen()
@@ -357,8 +376,9 @@ struct MovieCardView: View {
                     }
                 } else if !isVerticalDominant && width < -swipeThreshold {
                     // Swipe left - skip
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        offset = CGSize(width: -500, height: 0)
+                    let flyDistance = -500 * velocityMultiplier
+                    withAnimation(.spring(response: springResponse, dampingFraction: 0.8)) {
+                        offset = CGSize(width: flyDistance, height: 0)
                         rotation = -maxRotation
                     }
                     HapticManager.skip()
@@ -373,6 +393,7 @@ struct MovieCardView: View {
                         rotation = 0
                     }
                 }
+                hasTriggeredThreshold = false
             }
     }
     
