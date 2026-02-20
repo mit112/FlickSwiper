@@ -34,9 +34,9 @@ struct WatchlistRatingSheet: View {
                                 persistenceErrorMessage = "We couldn't save your rating. Please try again."
                             }
                         } label: {
-                            Image(systemName: "star.fill")
+                            Image(systemName: "star")
                                 .font(.title)
-                                .foregroundStyle(.yellow.opacity(0.3))
+                                .foregroundStyle(.yellow)
                         }
                     }
                 }

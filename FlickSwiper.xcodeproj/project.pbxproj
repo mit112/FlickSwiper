@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CCEDD3EB2F447E2D000914AD /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CCEDD3EA2F447E2D000914AD /* FirebaseAuth */; };
+		CCEDD3ED2F447E2E000914AD /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CCEDD3EC2F447E2D000914AD /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		CC2419782F4265FC0081BE24 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -59,6 +64,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CCEDD3EB2F447E2D000914AD /* FirebaseAuth in Frameworks */,
+				CCEDD3ED2F447E2E000914AD /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +133,8 @@
 			);
 			name = FlickSwiper;
 			packageProductDependencies = (
+				CCEDD3EA2F447E2D000914AD /* FirebaseAuth */,
+				CCEDD3EC2F447E2D000914AD /* FirebaseFirestore */,
 			);
 			productName = FlickSwiper;
 			productReference = CCFA431C2F18030C00F0943B /* FlickSwiper.app */;
@@ -159,6 +168,9 @@
 			);
 			mainGroup = CCFA43132F18030C00F0943B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CCEDD3E92F447E2D000914AD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CCFA431D2F18030C00F0943B /* Products */;
 			projectDirPath = "";
@@ -393,6 +405,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FlickSwiper/FlickSwiper.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3P89U4WZAB;
@@ -413,6 +427,7 @@
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mitsheth.FlickSwiper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -434,6 +449,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FlickSwiper/FlickSwiper.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3P89U4WZAB;
@@ -454,6 +471,7 @@
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mitsheth.FlickSwiper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -499,6 +517,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CCEDD3E92F447E2D000914AD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CCEDD3EA2F447E2D000914AD /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CCEDD3E92F447E2D000914AD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		CCEDD3EC2F447E2D000914AD /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CCEDD3E92F447E2D000914AD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CCFA43142F18030C00F0943B /* Project object */;
 }

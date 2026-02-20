@@ -19,7 +19,7 @@ final class SwipeViewModelTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         
-        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self])
+        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         container = try ModelContainer(for: schema, configurations: [config])
         context = ModelContext(container)
@@ -270,37 +270,27 @@ final class SwipeViewModelTests: XCTestCase {
         XCTAssertNil(result.sourcePlatform)
     }
     
-    // MARK: - Watchlist (Save for Later)
+    // MARK: - Watchlist (Save for Later / Swipe Up)
     
-    func testWatchlistRemovesFromQueue() async {
+    func testSwipeUpRemovesFromQueue() async {
         let items = MockMediaService.createMockItems(count: 5)
         await mockService.setMockItems(items)
         await viewModel.loadInitialContent(context: context)
         
         let firstItem = viewModel.mediaItems[0]
-        
-        // Mimic SwipeView.saveToWatchlist: add to undo stack, persist, remove from stack
-        viewModel.addToUndoStack(item: firstItem, direction: .watchlist)
-        let swipedItem = SwipedItem(from: firstItem, direction: .watchlist)
-        context.insert(swipedItem)
-        try? context.save()
-        viewModel.removeCardFromStack(item: firstItem)
+        viewModel.swipeUp(item: firstItem, context: context)
         
         XCTAssertFalse(viewModel.mediaItems.contains(where: { $0.id == firstItem.id }),
                        "Watchlisted item should be removed from the card queue")
     }
     
-    func testWatchlistPersistsWithCorrectDirection() async {
+    func testSwipeUpPersistsWithCorrectDirection() async {
         let items = MockMediaService.createMockItems(count: 3)
         await mockService.setMockItems(items)
         await viewModel.loadInitialContent(context: context)
         
         let firstItem = viewModel.mediaItems[0]
-        
-        let swipedItem = SwipedItem(from: firstItem, direction: .watchlist)
-        context.insert(swipedItem)
-        try? context.save()
-        viewModel.removeCardFromStack(item: firstItem)
+        viewModel.swipeUp(item: firstItem, context: context)
         
         let descriptor = FetchDescriptor<SwipedItem>(
             predicate: #Predicate { $0.swipeDirection == "watchlist" }
@@ -312,7 +302,7 @@ final class SwipeViewModelTests: XCTestCase {
         XCTAssertEqual(saved?.first?.title, firstItem.title)
     }
     
-    func testWatchlistItemDoesNotReappearInDiscovery() async {
+    func testSwipeUpItemDoesNotReappearInDiscovery() async {
         let items = MockMediaService.createMockItems(count: 5)
         await mockService.setMockItems(items)
         await viewModel.loadInitialContent(context: context)
@@ -320,12 +310,7 @@ final class SwipeViewModelTests: XCTestCase {
         let firstItem = viewModel.mediaItems[0]
         let uniqueID = firstItem.uniqueID
         
-        // Save to watchlist via the ViewModel path
-        viewModel.addToUndoStack(item: firstItem, direction: .watchlist)
-        let swipedItem = SwipedItem(from: firstItem, direction: .watchlist)
-        context.insert(swipedItem)
-        try? context.save()
-        viewModel.removeCardFromStack(item: firstItem)
+        viewModel.swipeUp(item: firstItem, context: context)
         
         // Reload swiped IDs (as would happen on next app launch / tab switch)
         viewModel.loadSwipedIDs(context: context)
@@ -338,23 +323,15 @@ final class SwipeViewModelTests: XCTestCase {
                        "Watchlisted items should be filtered out of discovery")
     }
     
-    func testUndoWatchlistRestoresCard() async {
+    func testUndoSwipeUpRestoresCardAndDeletesRecord() async {
         let items = MockMediaService.createMockItems(count: 5)
         await mockService.setMockItems(items)
         await viewModel.loadInitialContent(context: context)
         
         let firstItem = viewModel.mediaItems[0]
-        
-        // Save to watchlist
-        viewModel.addToUndoStack(item: firstItem, direction: .watchlist)
-        let swipedItem = SwipedItem(from: firstItem, direction: .watchlist)
-        context.insert(swipedItem)
-        try? context.save()
-        viewModel.removeCardFromStack(item: firstItem)
+        viewModel.swipeUp(item: firstItem, context: context)
         
         XCTAssertTrue(viewModel.canUndo)
-        
-        // Undo should restore the card and delete the persisted record
         viewModel.undoLastSwipe(context: context)
         
         XCTAssertEqual(viewModel.mediaItems.first?.id, firstItem.id,
@@ -366,6 +343,158 @@ final class SwipeViewModelTests: XCTestCase {
         let remaining = try? context.fetch(descriptor)
         XCTAssertEqual(remaining?.count, 0,
                        "Undo should delete the watchlist SwipedItem record")
+    }
+    
+    // MARK: - Direction Protection (never demote)
+    
+    func testSwipeLeftDoesNotDemoteSeenItem() async {
+        // Pre-populate a "seen" item with a rating
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .seen)
+        preExisting.personalRating = 5
+        context.insert(preExisting)
+        try? context.save()
+        
+        // Load with "include swiped" ON so the item appears in discover
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        // Swipe left on the already-seen item
+        viewModel.swipeLeft(item: items[0], context: context)
+        
+        // Verify the record was NOT demoted to "skipped"
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionSeen,
+                       "Swiping left on a seen item must NOT demote it to skipped")
+        XCTAssertEqual(fetched?.first?.personalRating, 5,
+                       "Personal rating must be preserved")
+    }
+    
+    func testSwipeUpDoesNotDemoteSeenItem() async {
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .seen)
+        preExisting.personalRating = 4
+        context.insert(preExisting)
+        try? context.save()
+        
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        viewModel.swipeUp(item: items[0], context: context)
+        
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionSeen,
+                       "Bookmarking a seen item must NOT demote it to watchlist")
+        XCTAssertEqual(fetched?.first?.personalRating, 4)
+    }
+    
+    func testSwipeLeftDoesNotDemoteWatchlistItem() async {
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .watchlist)
+        context.insert(preExisting)
+        try? context.save()
+        
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        viewModel.swipeLeft(item: items[0], context: context)
+        
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionWatchlist,
+                       "Swiping left on a watchlist item must NOT demote it to skipped")
+    }
+    
+    func testSwipeRightPromotesWatchlistToSeen() async {
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .watchlist)
+        context.insert(preExisting)
+        try? context.save()
+        
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        viewModel.swipeRight(item: items[0], context: context)
+        
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionSeen,
+                       "Swiping right on a watchlist item should promote it to seen")
+    }
+    
+    // MARK: - Undo With Pre-existing Records
+    
+    func testUndoRestoresPreExistingWatchlistAfterSwipeRight() async {
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .watchlist)
+        context.insert(preExisting)
+        try? context.save()
+        
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        // Promote watchlist→seen
+        viewModel.swipeRight(item: items[0], context: context)
+        
+        // Undo should restore to watchlist, NOT delete
+        viewModel.undoLastSwipe(context: context)
+        
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.count, 1,
+                       "Undo on pre-existing record must NOT delete it")
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionWatchlist,
+                       "Undo should restore the previous direction")
+    }
+    
+    func testUndoOnNoOpSwipeLeftDoesNotDeleteRecord() async {
+        let items = MockMediaService.createMockItems(count: 5)
+        let preExisting = SwipedItem(from: items[0], direction: .seen)
+        preExisting.personalRating = 3
+        context.insert(preExisting)
+        try? context.save()
+        
+        viewModel.includeSwipedItems = true
+        await mockService.setMockItems(items)
+        await viewModel.loadInitialContent(context: context)
+        
+        // Swipe left on seen item (no-op: direction unchanged)
+        viewModel.swipeLeft(item: items[0], context: context)
+        
+        // Undo should restore the card but NOT delete the seen record
+        viewModel.undoLastSwipe(context: context)
+        
+        let uid = items[0].uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.uniqueID == uid }
+        )
+        let fetched = try? context.fetch(descriptor)
+        XCTAssertEqual(fetched?.count, 1,
+                       "Undo on a no-op skip must NOT delete the pre-existing record")
+        XCTAssertEqual(fetched?.first?.swipeDirection, SwipedItem.directionSeen)
+        XCTAssertEqual(fetched?.first?.personalRating, 3)
     }
     
     // MARK: - RemoveCardFromStack

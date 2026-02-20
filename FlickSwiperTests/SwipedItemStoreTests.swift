@@ -10,7 +10,7 @@ final class SwipedItemStoreTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self])
+        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         container = try ModelContainer(for: schema, configurations: [config])
         context = ModelContext(container)
@@ -123,13 +123,162 @@ final class SwipedItemStoreTests: XCTestCase {
         _ = try store.markAsSeen(from: item)
         _ = try store.markAsSeen(from: item)
 
-        // SwiftData's @Attribute(.unique) performs an upsert — no error,
-        // but only one record should exist for this uniqueID.
+        // The existence check in markAsSeen should find the existing record and
+        // update it rather than inserting a duplicate.
         let expectedID = item.uniqueID
         let descriptor = FetchDescriptor<SwipedItem>(
             predicate: #Predicate { $0.uniqueID == expectedID }
         )
         let stored = try context.fetch(descriptor)
-        XCTAssertEqual(stored.count, 1, "Duplicate insert should upsert, not create a second record")
+        XCTAssertEqual(stored.count, 1, "Duplicate insert should update existing, not create a second record")
+    }
+
+    // MARK: - Data Preservation Tests
+
+    func testMarkAsSeenPreservesExistingRating() throws {
+        let item = MediaItem(
+            id: 105,
+            title: "Rated Movie",
+            overview: "Rating should survive re-mark",
+            posterPath: nil,
+            releaseDate: "2020-01-01",
+            rating: 8.0,
+            mediaType: .movie
+        )
+
+        let saved = try store.markAsSeen(from: item)
+        try store.setPersonalRating(5, for: saved)
+        XCTAssertEqual(saved.personalRating, 5)
+
+        // Mark the same item as seen again (simulates re-swipe with "Show Previously Swiped" on)
+        let reSaved = try store.markAsSeen(from: item)
+
+        XCTAssertEqual(reSaved.personalRating, 5, "Re-marking as seen must not reset personalRating")
+        XCTAssertEqual(reSaved.uniqueID, item.uniqueID)
+    }
+
+    func testSaveToWatchlistDoesNotDemoteSeenItemAndPreservesExistingRating() throws {
+        let item = MediaItem(
+            id: 106,
+            title: "Watchlist Preservation",
+            overview: "Data should survive direction change",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: 7.5,
+            mediaType: .tvShow
+        )
+
+        let saved = try store.markAsSeen(from: item)
+        try store.setPersonalRating(4, for: saved)
+
+        // Move to watchlist — should update direction but keep rating
+        let watchlisted = try store.saveToWatchlist(from: item)
+
+        XCTAssertEqual(watchlisted.personalRating, 4, "Moving to watchlist must not reset personalRating")
+        XCTAssertEqual(
+            watchlisted.swipeDirection,
+            SwipedItem.directionSeen,
+            "saveToWatchlist must not demote a seen item"
+        )
+    }
+
+    func testMovieAndTVShowWithSameIDAreSeparateRecords() throws {
+        let movie = MediaItem(
+            id: 200,
+            title: "Same ID Movie",
+            overview: "",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: nil,
+            mediaType: .movie
+        )
+        let tvShow = MediaItem(
+            id: 200,
+            title: "Same ID TV Show",
+            overview: "",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: nil,
+            mediaType: .tvShow
+        )
+
+        _ = try store.markAsSeen(from: movie)
+        _ = try store.markAsSeen(from: tvShow)
+
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate { $0.swipeDirection == "seen" }
+        )
+        let stored = try context.fetch(descriptor)
+        XCTAssertEqual(stored.count, 2, "Movie and TV show with same TMDB ID must be separate records")
+
+        let uniqueIDs = Set(stored.map(\.uniqueID))
+        XCTAssertTrue(uniqueIDs.contains("movie_200"))
+        XCTAssertTrue(uniqueIDs.contains("tvShow_200"))
+    }
+
+    // MARK: - Direction Protection in Store
+
+    func testSaveToWatchlistDoesNotDemoteSeenItem() throws {
+        let item = MediaItem(
+            id: 300,
+            title: "Already Seen",
+            overview: "Should not be demoted",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: nil,
+            mediaType: .movie
+        )
+
+        let saved = try store.markAsSeen(from: item)
+        try store.setPersonalRating(5, for: saved)
+
+        // Attempt to save the same item to watchlist
+        let result = try store.saveToWatchlist(from: item)
+
+        // Must remain "seen" with rating intact
+        XCTAssertEqual(result.swipeDirection, SwipedItem.directionSeen,
+                       "saveToWatchlist must not demote a seen item")
+        XCTAssertEqual(result.personalRating, 5)
+    }
+
+    func testSaveToWatchlistAllowsPromotionFromSkipped() throws {
+        let item = MediaItem(
+            id: 301,
+            title: "Skipped Then Watchlisted",
+            overview: "",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: nil,
+            mediaType: .movie
+        )
+
+        // First mark as seen, but we need a skipped item.
+        // Create directly:
+        let skipped = SwipedItem(from: item, direction: .skipped)
+        context.insert(skipped)
+        try context.save()
+
+        let result = try store.saveToWatchlist(from: item)
+        XCTAssertEqual(result.swipeDirection, SwipedItem.directionWatchlist,
+                       "saveToWatchlist should promote a skipped item")
+    }
+
+    func testRemoveAlsoAllowsReInsert() throws {
+        let item = MediaItem(
+            id: 107,
+            title: "Removable",
+            overview: "",
+            posterPath: nil,
+            releaseDate: nil,
+            rating: nil,
+            mediaType: .movie
+        )
+
+        let saved = try store.markAsSeen(from: item)
+        try store.remove(saved)
+
+        // Should be able to re-add without hitting the existing record path
+        let reAdded = try store.markAsSeen(from: item)
+        XCTAssertNil(reAdded.personalRating, "Fresh insert after removal should have nil rating")
     }
 }

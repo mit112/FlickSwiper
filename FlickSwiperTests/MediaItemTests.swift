@@ -207,4 +207,18 @@ final class MediaItemTests: XCTestCase {
         XCTAssertEqual(set.count, 1,
                        "Same id + mediaType should deduplicate in a Set")
     }
+    
+    func testMovieAndTVShowWithSameIDAreNotEqual() {
+        let movie = MediaItem(id: 42, title: "Same", overview: "", posterPath: nil,
+                              releaseDate: nil, rating: nil, mediaType: .movie)
+        let tvShow = MediaItem(id: 42, title: "Same", overview: "", posterPath: nil,
+                               releaseDate: nil, rating: nil, mediaType: .tvShow)
+        
+        XCTAssertNotEqual(movie, tvShow,
+                          "Same TMDB ID but different media types must not be equal")
+        
+        let set: Set<MediaItem> = [movie, tvShow]
+        XCTAssertEqual(set.count, 2,
+                       "Movie and TV show with same ID must be distinct in a Set")
+    }
 }

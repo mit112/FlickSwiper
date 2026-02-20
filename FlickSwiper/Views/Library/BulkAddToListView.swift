@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Full-screen sheet to add/remove seen items from a list in bulk. Items already in the list are pre-selected.
 struct BulkAddToListView: View {
     let list: UserList
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "BulkAddToList")
     
     @Query(filter: #Predicate<SwipedItem> {
         $0.swipeDirection == "seen" || $0.swipeDirection == "watchlist"
@@ -22,6 +24,7 @@ struct BulkAddToListView: View {
     @State private var genreFilter: Int?
     @State private var typeFilter: MediaItem.MediaType?
     @State private var originalIDs: Set<String> = []
+    @State private var persistenceErrorMessage: String?
     
     private var listEntries: [ListEntry] {
         allEntries.filter { $0.listID == list.id }
@@ -107,8 +110,9 @@ struct BulkAddToListView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        applyChanges()
-                        dismiss()
+                        if applyChanges() {
+                            dismiss()
+                        }
                     }
                     .fontWeight(.semibold)
                 }
@@ -118,6 +122,17 @@ struct BulkAddToListView: View {
                 selectedIDs = existingIDs
                 originalIDs = existingIDs
             }
+        }
+        .alert(
+            "Couldn't Save Changes",
+            isPresented: Binding(
+                get: { persistenceErrorMessage != nil },
+                set: { if !$0 { persistenceErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+        } message: {
+            Text(persistenceErrorMessage ?? "Please try again.")
         }
     }
     
@@ -129,21 +144,61 @@ struct BulkAddToListView: View {
         }
     }
     
-    private func applyChanges() {
-        let toAdd = selectedIDs.subtracting(originalIDs)
-        for itemID in toAdd {
-            let entry = ListEntry(listID: list.id, itemID: itemID)
-            modelContext.insert(entry)
+    @discardableResult
+    private func applyChanges() -> Bool {
+        do {
+            let toAdd = selectedIDs.subtracting(originalIDs)
+            let currentEntryIDs = try fetchCurrentItemIDs(for: list.id)
+            for itemID in toAdd {
+                guard !currentEntryIDs.contains(itemID) else { continue }
+                let entry = ListEntry(listID: list.id, itemID: itemID)
+                modelContext.insert(entry)
+            }
+
+            let toRemove = originalIDs.subtracting(selectedIDs)
+            for itemID in toRemove {
+                if let entry = listEntries.first(where: { $0.itemID == itemID }) {
+                    modelContext.delete(entry)
+                }
+            }
+
+            try dedupeEntries(for: list.id)
+            try modelContext.save()
+            // Sync to Firestore if this list is published
+            let ctx = modelContext
+            let syncList = list
+            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: syncList) }
+            return true
+        } catch {
+            logger.error("Failed to apply bulk list changes: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't update this list. Please try again."
+            return false
         }
-        
-        let toRemove = originalIDs.subtracting(selectedIDs)
-        for itemID in toRemove {
-            if let entry = listEntries.first(where: { $0.itemID == itemID }) {
+    }
+
+    private func fetchCurrentItemIDs(for listID: UUID) throws -> Set<String> {
+        let id = listID
+        let descriptor = FetchDescriptor<ListEntry>(
+            predicate: #Predicate<ListEntry> { $0.listID == id }
+        )
+        let listEntries = try modelContext.fetch(descriptor)
+        return Set(listEntries.map(\.itemID))
+    }
+
+    private func dedupeEntries(for listID: UUID) throws {
+        let id = listID
+        let descriptor = FetchDescriptor<ListEntry>(
+            predicate: #Predicate<ListEntry> { $0.listID == id }
+        )
+        let listEntries = try modelContext.fetch(descriptor)
+        var seenItemIDs = Set<String>()
+        for entry in listEntries {
+            if seenItemIDs.contains(entry.itemID) {
                 modelContext.delete(entry)
+            } else {
+                seenItemIDs.insert(entry.itemID)
             }
         }
-        
-        try? modelContext.save()
     }
     
     @ViewBuilder

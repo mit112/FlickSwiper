@@ -149,8 +149,18 @@ final class SwipeViewModel {
     
     // MARK: - Undo Support
     
+    /// Captures the state needed to reverse a single swipe action.
+    struct UndoEntry {
+        let item: MediaItem
+        let newDirection: SwipedItem.SwipeDirection
+        /// `nil` when the swipe created a new record (undo = delete record).
+        /// Non-nil with the previous direction string when a pre-existing record
+        /// was encountered (undo = restore that direction).
+        let previousDirection: String?
+    }
+    
     /// Stack of recently swiped items for undo functionality
-    private(set) var undoStack: [(item: MediaItem, direction: SwipedItem.SwipeDirection)] = []
+    private(set) var undoStack: [UndoEntry] = []
     
     /// Maximum number of items to keep in undo stack
     private let maxUndoStackSize = 10
@@ -174,6 +184,7 @@ final class SwipeViewModel {
     
     /// Image prefetch cache
     private var prefetchedImages: Set<String> = []
+    private var imagePrefetchTasks: [String: Task<Void, Never>] = [:]
     
     /// Debounce task for filter changes
     private var filterDebounceTask: Task<Void, Never>?
@@ -225,6 +236,7 @@ final class SwipeViewModel {
         // when the user has swiped through most available content.
         let maxAutoPages = 5
         var autoPageAttempts = 0
+        var consecutiveZeroYield = 0
         
         while autoPageAttempts < maxAutoPages {
             do {
@@ -245,15 +257,33 @@ final class SwipeViewModel {
                     break
                 }
                 
-                mediaItems.append(contentsOf: filteredItems)
+                // Deduplicate against items already in the queue.
+                // TMDB pagination can return the same item across pages.
+                let existingIDs = Set(mediaItems.map(\.uniqueID))
+                let deduped = filteredItems.filter { !existingIDs.contains($0.uniqueID) }
+                mediaItems.append(contentsOf: deduped)
                 currentPage += 1
                 
                 // If we got enough usable items, stop fetching
-                if filteredItems.count >= 5 || hasReachedEnd {
+                if deduped.count >= 5 || hasReachedEnd {
                     break
                 }
                 
-                // Otherwise, most items were filtered out — try another page
+                // Track consecutive pages where TMDB returned content that passed
+                // the swiped filter but was all duplicate of items already in our queue.
+                // This detects TMDB pagination overlap specifically — not swiped-item
+                // filtering (which is handled by the autoPageAttempts limit).
+                if deduped.isEmpty && !filteredItems.isEmpty {
+                    consecutiveZeroYield += 1
+                    if consecutiveZeroYield >= 2 {
+                        hasReachedEnd = true
+                        break
+                    }
+                } else if !deduped.isEmpty {
+                    consecutiveZeroYield = 0
+                }
+                
+                // Most items were filtered out — try another page
                 autoPageAttempts += 1
                 
             } catch {
@@ -293,104 +323,173 @@ final class SwipeViewModel {
         }
     }
     
-    /// Handle swipe right (mark as seen)
+    // MARK: - Direction Transition Policy
+    //
+    // Direction hierarchy: seen (2) > watchlist (1) > skipped (0)
+    // Promotions allowed, demotions silently ignored.
+    
+    /// Numeric rank for direction comparison. Higher = more "committed".
+    private static func directionRank(_ direction: String) -> Int {
+        switch direction {
+        case SwipedItem.directionSeen: return 2
+        case SwipedItem.directionWatchlist: return 1
+        default: return 0
+        }
+    }
+    
+    /// Whether transitioning from `current` to `proposed` is allowed.
+    private static func isTransitionAllowed(from current: String, to proposed: String) -> Bool {
+        directionRank(proposed) >= directionRank(current)
+    }
+    
+    // MARK: - Swipe Actions
+    
+    /// Handle swipe right (mark as seen).
+    /// "Seen" is the highest rank — always allowed on any existing record.
     @discardableResult
     func swipeRight(item: MediaItem, context: ModelContext) -> SwipedItem {
-        // Add to undo stack
-        addToUndoStack(item: item, direction: .seen)
+        let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
         
-        // Add to swiped IDs
-        swipedIDs.insert(item.uniqueID)
+        let swipedItem: SwipedItem
+        let previousDirection: String?
         
-        // Create SwipedItem record with full details
-        let swipedItem = SwipedItem(from: item, direction: .seen)
-        
-        // Store which platform the user was browsing (only for streaming methods)
-        if selectedMethod.watchProviderID != nil {
-            swipedItem.sourcePlatform = selectedMethod.rawValue
+        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
+            previousDirection = existing.swipeDirection
+            // "seen" is highest rank — always a valid transition
+            existing.swipeDirection = SwipedItem.directionSeen
+            existing.dateSwiped = Date()
+            if let sp = sourcePlatform { existing.sourcePlatform = sp }
+            swipedItem = existing
+        } else {
+            previousDirection = nil
+            let newItem = SwipedItem(from: item, direction: .seen)
+            newItem.sourcePlatform = sourcePlatform
+            context.insert(newItem)
+            swipedItem = newItem
         }
         
-        context.insert(swipedItem)
-        
-        // Save context
         do {
             try context.save()
+            swipedIDs.insert(item.uniqueID)
+            pushUndo(UndoEntry(item: item, newDirection: .seen, previousDirection: previousDirection))
+            removeFromQueue(item: item)
+            HapticManager.seen()
         } catch {
             logger.error("Error saving swipe right: \(error.localizedDescription)")
         }
-        
-        // Remove from queue
-        removeFromQueue(item: item)
-        
-        // Trigger haptic
-        HapticManager.seen()
-        
         return swipedItem
     }
     
-    /// Handle swipe left (skip)
+    /// Handle swipe left (skip).
+    /// Skipping a "seen" or "watchlist" item only removes the card from the queue
+    /// — it does NOT demote the record. The library stays intact.
     func swipeLeft(item: MediaItem, context: ModelContext) {
-        // Add to undo stack
-        addToUndoStack(item: item, direction: .skipped)
+        let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
         
-        // Add to swiped IDs
-        swipedIDs.insert(item.uniqueID)
+        let previousDirection: String?
         
-        // Create SwipedItem record
-        let swipedItem = SwipedItem(from: item, direction: .skipped)
-        
-        // Store which platform the user was browsing (only for streaming methods)
-        if selectedMethod.watchProviderID != nil {
-            swipedItem.sourcePlatform = selectedMethod.rawValue
+        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
+            previousDirection = existing.swipeDirection
+            // Only demote if transition is allowed (skipped→skipped is a no-op)
+            if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionSkipped) {
+                existing.swipeDirection = SwipedItem.directionSkipped
+                existing.dateSwiped = Date()
+                if let sp = sourcePlatform { existing.sourcePlatform = sp }
+            }
+            // If not allowed (e.g. seen→skipped), leave the record untouched
+        } else {
+            previousDirection = nil
+            let swipedItem = SwipedItem(from: item, direction: .skipped)
+            swipedItem.sourcePlatform = sourcePlatform
+            context.insert(swipedItem)
         }
         
-        context.insert(swipedItem)
-        
-        // Save context
         do {
             try context.save()
+            swipedIDs.insert(item.uniqueID)
+            pushUndo(UndoEntry(item: item, newDirection: .skipped, previousDirection: previousDirection))
+            removeFromQueue(item: item)
+            HapticManager.skip()
         } catch {
             logger.error("Error saving swipe left: \(error.localizedDescription)")
         }
-        
-        // Remove from queue
-        removeFromQueue(item: item)
-        
-        // Trigger haptic
-        HapticManager.skip()
     }
     
-    /// Undo the last swipe action
-    func undoLastSwipe(context: ModelContext) {
-        guard let lastSwipe = undoStack.popLast() else { return }
+    /// Handle swipe up / bookmark (add to watchlist from Discover).
+    /// Watchlisting a "seen" item is a demotion — silently ignored.
+    func swipeUp(item: MediaItem, context: ModelContext) {
+        let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
         
-        let item = lastSwipe.item
+        let previousDirection: String?
         
-        // Capture uniqueID for predicate (required by #Predicate macro)
-        let itemUniqueID = item.uniqueID
-        
-        // Remove from swiped IDs
-        swipedIDs.remove(itemUniqueID)
-        
-        // Delete the SwipedItem record
-        let swipedDescriptor = FetchDescriptor<SwipedItem>(
-            predicate: #Predicate<SwipedItem> { swipedItem in
-                swipedItem.uniqueID == itemUniqueID
+        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
+            previousDirection = existing.swipeDirection
+            if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionWatchlist) {
+                existing.swipeDirection = SwipedItem.directionWatchlist
+                existing.dateSwiped = Date()
+                if let sp = sourcePlatform { existing.sourcePlatform = sp }
             }
-        )
+        } else {
+            previousDirection = nil
+            let swipedItem = SwipedItem(from: item, direction: .watchlist)
+            swipedItem.sourcePlatform = sourcePlatform
+            context.insert(swipedItem)
+        }
         
         do {
-            let swipedItems = try context.fetch(swipedDescriptor)
-            for swipedItem in swipedItems {
-                context.delete(swipedItem)
+            try context.save()
+            swipedIDs.insert(item.uniqueID)
+            pushUndo(UndoEntry(item: item, newDirection: .watchlist, previousDirection: previousDirection))
+            removeFromQueue(item: item)
+            HapticManager.seen()
+        } catch {
+            logger.error("Error saving swipe up (watchlist): \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Lookup
+    
+    /// Look up an existing SwipedItem by composite unique ID.
+    private func fetchExisting(uniqueID: String, context: ModelContext) -> SwipedItem? {
+        let uid = uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate<SwipedItem> { $0.uniqueID == uid }
+        )
+        return try? context.fetch(descriptor).first
+    }
+    
+    // MARK: - Undo
+    
+    /// Undo the last swipe action.
+    ///
+    /// - New records (previousDirection == nil): deletes the SwipedItem and removes from swipedIDs.
+    /// - Pre-existing records: restores the previous direction without deleting.
+    func undoLastSwipe(context: ModelContext) {
+        guard let entry = undoStack.popLast() else { return }
+        
+        let itemUniqueID = entry.item.uniqueID
+        
+        do {
+            if let previousDirection = entry.previousDirection {
+                // Record pre-existed — restore its original direction
+                if let existing = fetchExisting(uniqueID: itemUniqueID, context: context) {
+                    existing.swipeDirection = previousDirection
+                }
+                // swipedIDs: item was already tracked before the swipe, leave it
+            } else {
+                // Record was newly created — delete it
+                swipedIDs.remove(itemUniqueID)
+                let descriptor = FetchDescriptor<SwipedItem>(
+                    predicate: #Predicate<SwipedItem> { $0.uniqueID == itemUniqueID }
+                )
+                let records = try context.fetch(descriptor)
+                for record in records {
+                    context.delete(record)
+                }
             }
             
             try context.save()
-            
-            // Add item back to the front of the queue
-            mediaItems.insert(item, at: 0)
-            
-            // Trigger haptic
+            mediaItems.insert(entry.item, at: 0)
             HapticManager.undo()
             
         } catch {
@@ -400,10 +499,9 @@ final class SwipeViewModel {
     
     // MARK: - Undo Stack Management
     
-    func addToUndoStack(item: MediaItem, direction: SwipedItem.SwipeDirection) {
-        undoStack.append((item: item, direction: direction))
-        
-        // Keep stack size limited
+    /// Push an entry onto the undo stack, evicting the oldest if at capacity.
+    private func pushUndo(_ entry: UndoEntry) {
+        undoStack.append(entry)
         if undoStack.count > maxUndoStackSize {
             undoStack.removeFirst()
         }
@@ -428,12 +526,18 @@ final class SwipeViewModel {
     func prefetchUpcomingImages() {
         // Prefetch next 5 card images (poster + thumbnail so Already Seen has them cached)
         let itemsToPrefetch = Array(mediaItems.prefix(5))
+        let activeIDs = Set(itemsToPrefetch.map(\.uniqueID))
+
+        // Cancel stale downloads when the visible queue changes.
+        for (id, task) in imagePrefetchTasks where !activeIDs.contains(id) {
+            task.cancel()
+            imagePrefetchTasks[id] = nil
+        }
         
         for item in itemsToPrefetch {
             guard !prefetchedImages.contains(item.uniqueID) else { continue }
+            guard imagePrefetchTasks[item.uniqueID] == nil else { continue }
             guard let posterURL = item.posterURL else { continue }
-            
-            prefetchedImages.insert(item.uniqueID)
             
             // Build w185 thumbnail URL (same as SeenItemCard) so Already Seen list can use cache
             let thumbnailURL = item.posterPath.flatMap { path in
@@ -441,15 +545,21 @@ final class SwipeViewModel {
             }
             
             // Start image downloads in background (poster for swipe card, thumbnail for Already Seen)
-            Task.detached(priority: .background) {
+            let itemID = item.uniqueID
+            imagePrefetchTasks[itemID] = Task(priority: .background) {
+                defer { imagePrefetchTasks[itemID] = nil }
+                guard !Task.isCancelled else { return }
                 do {
                     let (_, _) = try await URLSession.shared.data(from: posterURL)
                 } catch {}
                 if let thumbURL = thumbnailURL {
+                    guard !Task.isCancelled else { return }
                     do {
                         let (_, _) = try await URLSession.shared.data(from: thumbURL)
                     } catch {}
                 }
+                guard !Task.isCancelled else { return }
+                prefetchedImages.insert(itemID)
             }
         }
     }
@@ -495,38 +605,6 @@ final class SwipeViewModel {
         }
         
         return filtered
-    }
-    
-    /// Reset all swiped items (clear history)
-    func resetAllSwipedItems(context: ModelContext) {
-        // Delete all SwipedItem records
-        do {
-            try context.delete(model: SwipedItem.self)
-            try context.save()
-            swipedIDs.removeAll()
-            Task { await resetAndLoadContent() }
-        } catch {
-            logger.error("Error resetting swiped items: \(error.localizedDescription)")
-        }
-    }
-    
-    /// Reset only skipped items (keep seen items)
-    func resetSkippedItems(context: ModelContext) {
-        let descriptor = FetchDescriptor<SwipedItem>(
-            predicate: #Predicate { $0.swipeDirection == "skipped" }
-        )
-        
-        do {
-            let skippedItems = try context.fetch(descriptor)
-            for item in skippedItems {
-                swipedIDs.remove(item.uniqueID)
-                context.delete(item)
-            }
-            try context.save()
-            Task { await resetAndLoadContent() }
-        } catch {
-            logger.error("Error resetting skipped items: \(error.localizedDescription)")
-        }
     }
     
     /// Remove item from the queue after swiping

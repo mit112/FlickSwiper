@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Full grid view of watchlisted items with swipe-to-delete and "mark as seen" actions
 struct WatchlistGridView: View {
     let items: [SwipedItem]
     
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "WatchlistGrid")
     @Environment(\.modelContext) private var modelContext
     
     @State private var searchText = ""
@@ -13,6 +15,8 @@ struct WatchlistGridView: View {
     @State private var selectedItem: SwipedItem?
     @State private var showWatchlistRating = false
     @State private var ratingItem: SwipedItem?
+    @State private var persistenceErrorMessage: String?
+    @State private var ratingPresentationTask: Task<Void, Never>?
     
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -118,23 +122,63 @@ struct WatchlistGridView: View {
                 }
             }
         }
+        .alert(
+            "Couldn't Save Changes",
+            isPresented: Binding(
+                get: { persistenceErrorMessage != nil },
+                set: { if !$0 { persistenceErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+        } message: {
+            Text(persistenceErrorMessage ?? "Please try again.")
+        }
+        .onDisappear {
+            ratingPresentationTask?.cancel()
+            ratingPresentationTask = nil
+        }
     }
     
     private func markAsSeen(_ item: SwipedItem) {
-        item.swipeDirection = SwipedItem.directionSeen
-        item.dateSwiped = Date()
-        try? modelContext.save()
-        
-        ratingItem = item
-        Task {
-            try? await Task.sleep(for: .seconds(0.3))
-            showWatchlistRating = true
+        do {
+            try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+            ratingItem = item
+            ratingPresentationTask?.cancel()
+            let uniqueID = item.uniqueID
+            ratingPresentationTask = Task {
+                try? await Task.sleep(for: .seconds(0.3))
+                guard !Task.isCancelled else { return }
+                guard ratingItem?.uniqueID == uniqueID else { return }
+                guard canPresentRating(for: uniqueID) else { return }
+                showWatchlistRating = true
+            }
+        } catch {
+            logger.error("Failed to move watchlist item to seen: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't update this item. Please try again."
         }
     }
     
     private func removeFromWatchlist(_ item: SwipedItem) {
-        modelContext.delete(item)
-        try? modelContext.save()
+        do {
+            try SwipedItemStore(context: modelContext).remove(item)
+            if ratingItem?.uniqueID == item.uniqueID {
+                ratingPresentationTask?.cancel()
+                ratingPresentationTask = nil
+                ratingItem = nil
+                showWatchlistRating = false
+            }
+        } catch {
+            logger.error("Failed to remove watchlist item: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't remove this item. Please try again."
+        }
+    }
+
+    private func canPresentRating(for uniqueID: String) -> Bool {
+        let id = uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate<SwipedItem> { $0.uniqueID == id }
+        )
+        return (try? modelContext.fetch(descriptor).first) != nil
     }
     
     private var filterChips: some View {

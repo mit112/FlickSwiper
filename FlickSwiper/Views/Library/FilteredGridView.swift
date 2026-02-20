@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+@preconcurrency import FirebaseAuth
+import os
 
 /// Reusable filtered grid view used by smart collections, list details, and "View All"
 struct FilteredGridView: View {
@@ -16,6 +18,7 @@ struct FilteredGridView: View {
     private var allLibraryItems: [SwipedItem]
     @Query private var allEntries: [ListEntry]
     
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "FilteredGrid")
     @Environment(\.modelContext) private var modelContext
     
     @State private var ratingFilter: Int?
@@ -23,12 +26,24 @@ struct FilteredGridView: View {
     @State private var typeFilter: MediaItem.MediaType?
     @State private var searchText = ""
     @State private var selectedItem: SwipedItem?
+    @State private var selectedWatchlistItem: SwipedItem?
+    @State private var showWatchlistRating = false
+    @State private var ratingItem: SwipedItem?
     @State private var addToListItem: SwipedItem?
     @State private var showBulkAdd = false
+    @State private var persistenceErrorMessage: String?
     @State private var isEditing = false
     @State private var selectedItemIDs: Set<String> = []
     @State private var showDeleteConfirmation = false
     @State private var showBulkAddSelected = false
+    @State private var ratingPresentationTask: Task<Void, Never>?
+    
+    // Social lists state
+    @Environment(AuthService.self) private var authService
+    @State private var showSignInForPublish = false
+    @State private var isPublishing = false
+    @State private var publishShareURL: URL?
+    @State private var showPublishShareSheet = false
     
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -201,7 +216,11 @@ struct FilteredGridView: View {
                                         }
                                     }
                                     .onTapGesture {
-                                        selectedItem = item
+                                        if item.isWatchlist {
+                                            selectedWatchlistItem = item
+                                        } else {
+                                            selectedItem = item
+                                        }
                                     }
                                     .contextMenu {
                                         contextMenuItems(for: item)
@@ -249,8 +268,32 @@ struct FilteredGridView: View {
                         } label: {
                             Label("Select", systemImage: "checkmark.circle")
                         }
+                        
+                        // Social list actions (only when viewing a UserList)
+                        if let list = sourceList {
+                            if list.isPublished {
+                                Button {
+                                    if let docID = list.firestoreDocID,
+                                       let url = URL(string: "\(Constants.URLs.deepLinkBase)/list/\(docID)") {
+                                        publishShareURL = url
+                                        showPublishShareSheet = true
+                                    }
+                                } label: {
+                                    Label("Share Link", systemImage: "link")
+                                }
+                            } else {
+                                Button {
+                                    startPublishFromDetail(list: list)
+                                } label: {
+                                    Label("Publish & Share", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            
+                            Divider()
+                        }
+                        
                         ShareLink(item: shareText) {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                            Label("Share as Text", systemImage: "doc.text")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -325,6 +368,55 @@ struct FilteredGridView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $selectedWatchlistItem) { item in
+            WatchlistItemDetailView(
+                item: item,
+                onMarkAsSeen: {
+                    do {
+                        try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+                        selectedWatchlistItem = nil
+                        ratingItem = item
+                        ratingPresentationTask?.cancel()
+                        let uniqueID = item.uniqueID
+                        ratingPresentationTask = Task {
+                            try? await Task.sleep(for: .seconds(0.3))
+                            guard !Task.isCancelled else { return }
+                            guard ratingItem?.uniqueID == uniqueID else { return }
+                            guard canPresentRating(for: uniqueID) else { return }
+                            showWatchlistRating = true
+                        }
+                    } catch {
+                        logger.error("Failed to move watchlist item to seen: \(error.localizedDescription)")
+                        persistenceErrorMessage = "We couldn't update this item. Please try again."
+                    }
+                },
+                onRemove: {
+                    do {
+                        try SwipedItemStore(context: modelContext).remove(item)
+                        if ratingItem?.uniqueID == item.uniqueID {
+                            ratingPresentationTask?.cancel()
+                            ratingPresentationTask = nil
+                            ratingItem = nil
+                            showWatchlistRating = false
+                        }
+                        selectedWatchlistItem = nil
+                    } catch {
+                        logger.error("Failed to remove watchlist item: \(error.localizedDescription)")
+                        persistenceErrorMessage = "We couldn't remove this item. Please try again."
+                    }
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showWatchlistRating) {
+            if let item = ratingItem {
+                WatchlistRatingSheet(item: item) {
+                    showWatchlistRating = false
+                    ratingItem = nil
+                }
+            }
+        }
         .sheet(item: $addToListItem) { item in
             AddToListSheet(item: item)
                 .presentationDetents([.medium])
@@ -349,6 +441,45 @@ struct FilteredGridView: View {
                 Text("Remove \(selectedItemIDs.count) item(s) from \"\(sourceList?.name ?? "")\"? They'll still be in your library.")
             } else {
                 Text("Delete \(selectedItemIDs.count) item(s) permanently? This cannot be undone.")
+            }
+        }
+        .alert(
+            "Couldn't Save Changes",
+            isPresented: Binding(
+                get: { persistenceErrorMessage != nil },
+                set: { if !$0 { persistenceErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+        } message: {
+            Text(persistenceErrorMessage ?? "Please try again.")
+        }
+        .onDisappear {
+            ratingPresentationTask?.cancel()
+            ratingPresentationTask = nil
+        }
+        // MARK: - Publish Sheets
+        .sheet(isPresented: $showSignInForPublish) {
+            SignInPromptView(reason: "share this list with friends") {
+                if let list = sourceList {
+                    startPublishFromDetail(list: list)
+                }
+            }
+        }
+        .sheet(isPresented: $showPublishShareSheet) {
+            if let url = publishShareURL {
+                ShareLinkSheet(url: url)
+            }
+        }
+        .overlay {
+            if isPublishing {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .overlay {
+                        ProgressView("Publishing...")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
             }
         }
     }
@@ -406,12 +537,22 @@ struct FilteredGridView: View {
     @ViewBuilder
     private func contextMenuItems(for item: SwipedItem) -> some View {
         Button {
-            selectedItem = item
+            if item.isWatchlist {
+                selectedWatchlistItem = item
+            } else {
+                selectedItem = item
+            }
         } label: {
             Label("View Details", systemImage: "info.circle")
         }
         
         if let list = sourceList {
+            Button {
+                addToListItem = item
+            } label: {
+                Label("Add to List", systemImage: "text.badge.plus")
+            }
+            
             Button(role: .destructive) {
                 removeFromList(item: item, list: list)
             } label: {
@@ -429,7 +570,15 @@ struct FilteredGridView: View {
     private func removeFromList(item: SwipedItem, list: UserList) {
         if let entry = allEntries.first(where: { $0.listID == list.id && $0.itemID == item.uniqueID }) {
             modelContext.delete(entry)
-            try? modelContext.save()
+            do {
+                try modelContext.save()
+                // Sync to Firestore if this list is published
+                let ctx = modelContext
+                Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+            } catch {
+                logger.error("Failed to remove item from list: \(error.localizedDescription)")
+                persistenceErrorMessage = "We couldn't update this list. Please try again."
+            }
         }
     }
     
@@ -451,9 +600,58 @@ struct FilteredGridView: View {
                 modelContext.delete(item)
             }
         }
-        try? modelContext.save()
-        selectedItemIDs.removeAll()
-        isEditing = false
+        do {
+            try modelContext.save()
+            // Sync to Firestore if removing from a published list
+            if let list = sourceList {
+                let ctx = modelContext
+                Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+            }
+            selectedItemIDs.removeAll()
+            isEditing = false
+        } catch {
+            logger.error("Failed to save bulk delete changes: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't save these changes. Please try again."
+        }
+    }
+
+    private func canPresentRating(for uniqueID: String) -> Bool {
+        let id = uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate<SwipedItem> { $0.uniqueID == id }
+        )
+        return (try? modelContext.fetch(descriptor).first) != nil
+    }
+    
+    // MARK: - Publish from Detail
+    
+    private func startPublishFromDetail(list: UserList) {
+        guard authService.isSignedIn else {
+            showSignInForPublish = true
+            return
+        }
+        
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let displayName = authService.displayName
+        
+        isPublishing = true
+        Task {
+            do {
+                let publisher = ListPublisher(context: modelContext)
+                let url = try await publisher.publish(
+                    list: list,
+                    ownerUID: uid,
+                    ownerDisplayName: displayName
+                )
+                isPublishing = false
+                publishShareURL = url
+                showPublishShareSheet = true
+            } catch {
+                isPublishing = false
+                logger.error("Publish from detail failed: \(error.localizedDescription)")
+                persistenceErrorMessage = "We couldn't publish this list. Please try again."
+            }
+        }
     }
     
 }

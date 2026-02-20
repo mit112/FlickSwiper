@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseCore
 import os
 
 /// Structured logger for app lifecycle and database recovery diagnostics.
@@ -9,6 +10,14 @@ private let logger = Logger(subsystem: "com.flickswiper.app", category: "Lifecyc
 @main
 struct FlickSwiperApp: App {
     private let mediaService: any MediaServiceProtocol = TMDBService()
+    
+    /// Shared auth service for Sign in with Apple + Firebase Auth.
+    /// Injected into the view hierarchy via .environment().
+    @State private var authService = AuthService()
+    
+    /// Real-time sync service for followed lists.
+    /// Activated lazily when user is signed in and viewing Library.
+    @State private var followedListSyncService = FollowedListSyncService()
     
     // MARK: - Database Recovery State
     
@@ -21,6 +30,12 @@ struct FlickSwiperApp: App {
     static var isUsingInMemoryFallback = false
     
     init() {
+        // Initialize Firebase — must be called before any Firebase service
+        FirebaseApp.configure()
+        
+        // Now safe to set up auth listener (requires Firebase to be configured first)
+        authService.configure()
+        
         // Configure URL cache for poster images
         // 50MB memory cache + 200MB disk cache
         URLCache.shared = URLCache(
@@ -31,7 +46,8 @@ struct FlickSwiperApp: App {
     }
     
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self])
+        let schema = Schema([SwipedItem.self, UserList.self, ListEntry.self,
+                             FollowedList.self, FollowedListItem.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         
         // Attempt 1: Normal initialization with migration plan
@@ -72,6 +88,8 @@ struct FlickSwiperApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(mediaService: mediaService)
+                .environment(authService)
+                .environment(followedListSyncService)
         }
         .modelContainer(sharedModelContainer)
     }

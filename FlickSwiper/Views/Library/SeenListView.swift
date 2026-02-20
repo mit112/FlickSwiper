@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// View displaying the list of movies and TV shows marked as "Already Seen"
 struct SeenListView: View {
@@ -189,7 +190,9 @@ struct SeenItemDetailView: View {
     let item: SwipedItem
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "SeenItemDetail")
     @State private var showAddToList = false
+    @State private var persistenceErrorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -266,8 +269,13 @@ struct SeenItemDetailView: View {
                                     } else {
                                         item.personalRating = star
                                     }
-                                    try? modelContext.save()
-                                    HapticManager.selectionChanged()
+                                    do {
+                                        try modelContext.save()
+                                        HapticManager.selectionChanged()
+                                    } catch {
+                                        logger.error("Failed to save personal rating: \(error.localizedDescription)")
+                                        persistenceErrorMessage = "We couldn't save your rating. Please try again."
+                                    }
                                 } label: {
                                     Image(systemName: star <= (item.personalRating ?? 0) ? "star.fill" : "star")
                                         .font(.title3)
@@ -325,6 +333,17 @@ struct SeenItemDetailView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
+            .alert(
+                "Couldn't Save Changes",
+                isPresented: Binding(
+                    get: { persistenceErrorMessage != nil },
+                    set: { if !$0 { persistenceErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+            } message: {
+                Text(persistenceErrorMessage ?? "Please try again.")
+            }
         }
     }
 }
@@ -333,7 +352,7 @@ struct SeenItemDetailView: View {
 
 #Preview("List View") {
     SeenListView()
-        .modelContainer(for: [SwipedItem.self], inMemory: true)
+        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }
 
 #Preview("Item Card") {

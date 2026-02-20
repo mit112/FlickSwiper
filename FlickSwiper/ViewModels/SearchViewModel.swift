@@ -36,8 +36,10 @@ final class SearchViewModel {
 
         guard !query.isEmpty else {
             results = []
+            isLoading = false
             hasSearched = false
             errorMessage = nil
+            isOffline = false
             return
         }
 
@@ -53,13 +55,19 @@ final class SearchViewModel {
             do {
                 let items = try await service.searchMulti(query: query, page: 1)
 
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    isLoading = false
+                    return
+                }
 
                 results = items
                 isLoading = false
                 hasSearched = true
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    isLoading = false
+                    return
+                }
 
                 isOffline = NetworkError.isOffline(error)
                 errorMessage = error.localizedDescription

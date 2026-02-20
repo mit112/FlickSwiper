@@ -25,14 +25,14 @@ struct SearchView: View {
         _viewModel = State(initialValue: SearchViewModel(mediaService: mediaService))
     }
 
-    /// Set of media IDs already in the user's library
-    private var seenMediaIDs: Set<Int> {
-        Set(seenItems.map(\.mediaID))
+    /// Set of unique IDs already in the user's library (composite key: "mediaType_tmdbID")
+    private var seenUniqueIDs: Set<String> {
+        Set(seenItems.map(\.uniqueID))
     }
     
-    /// Set of media IDs currently in the watchlist
-    private var watchlistMediaIDs: Set<Int> {
-        Set(watchlistItems.map(\.mediaID))
+    /// Set of unique IDs currently in the watchlist (composite key: "mediaType_tmdbID")
+    private var watchlistUniqueIDs: Set<String> {
+        Set(watchlistItems.map(\.uniqueID))
     }
 
     var body: some View {
@@ -64,8 +64,8 @@ struct SearchView: View {
             .sheet(item: $selectedItem) { item in
                 SearchResultDetailView(
                     item: item,
-                    isAlreadySeen: seenMediaIDs.contains(item.id),
-                    isInWatchlist: watchlistMediaIDs.contains(item.id),
+                    isAlreadySeen: seenUniqueIDs.contains(item.uniqueID),
+                    isInWatchlist: watchlistUniqueIDs.contains(item.uniqueID),
                     onMarkAsSeen: { markAsSeen(item) },
                     onSaveToWatchlist: { saveToWatchlist(item) }
                 )
@@ -99,8 +99,8 @@ struct SearchView: View {
                 ForEach(viewModel.results) { item in
                     SearchResultRow(
                         item: item,
-                        isAlreadySeen: seenMediaIDs.contains(item.id),
-                        isInWatchlist: watchlistMediaIDs.contains(item.id)
+                        isAlreadySeen: seenUniqueIDs.contains(item.uniqueID),
+                        isInWatchlist: watchlistUniqueIDs.contains(item.uniqueID)
                     )
                     .onTapGesture { selectedItem = item }
 
@@ -258,9 +258,9 @@ struct SearchView: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "star.fill")
+                            Image(systemName: "star")
                                 .font(.title)
-                                .foregroundStyle(.yellow.opacity(0.3))
+                                .foregroundStyle(.yellow)
                         }
                     }
                 }

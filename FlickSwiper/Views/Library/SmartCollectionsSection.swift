@@ -14,6 +14,17 @@ struct SmartCollectionsSection: View {
     
     @State private var collections: [SmartCollection] = []
     
+    /// Lightweight hash that changes when ratings or platforms change,
+    /// triggering a rebuild of smart collections even if the count stays the same.
+    private var seenItemsHash: Int {
+        var hasher = Hasher()
+        for item in seenItems {
+            hasher.combine(item.personalRating)
+            hasher.combine(item.sourcePlatform)
+        }
+        return hasher.finalize()
+    }
+    
     var body: some View {
         Group {
             if !collections.isEmpty {
@@ -37,6 +48,9 @@ struct SmartCollectionsSection: View {
             }
         }
         .onChange(of: seenItems.count) { _, _ in
+            collections = buildCollections()
+        }
+        .onChange(of: seenItemsHash) { _, _ in
             collections = buildCollections()
         }
         .onAppear {

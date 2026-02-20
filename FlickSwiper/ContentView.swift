@@ -1,11 +1,18 @@
 import SwiftUI
 import SwiftData
 
+/// Wrapper to make a String doc ID `Identifiable` for `.sheet(item:)` binding.
+private struct SharedListID: Identifiable {
+    let docID: String
+    var id: String { docID }
+}
+
 /// Main content view with tab navigation
 struct ContentView: View {
     private let mediaService: any MediaServiceProtocol
     @State private var selectedTab = 0
     @State private var showDatabaseResetAlert = false
+    @State private var sharedListDocID: String?
 
     init(mediaService: any MediaServiceProtocol = TMDBService()) {
         self.mediaService = mediaService
@@ -42,6 +49,20 @@ struct ContentView: View {
                 .tag(3)
         }
         .tint(.primary)
+        .onOpenURL { url in
+            if let destination = DeepLinkHandler.destination(from: url) {
+                switch destination {
+                case .sharedList(let docID):
+                    sharedListDocID = docID
+                }
+            }
+        }
+        .sheet(item: Binding(
+            get: { sharedListDocID.map { SharedListID(docID: $0) } },
+            set: { sharedListDocID = $0?.docID }
+        )) { item in
+            SharedListView(docID: item.docID)
+        }
         .onAppear {
             // One-time check: if the database had to be reset on launch, tell the user.
             if FlickSwiperApp.databaseWasReset {
@@ -63,5 +84,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self], inMemory: true)
+        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

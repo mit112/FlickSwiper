@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
+import os
 
 /// Sheet that shows all user lists as a checklist, allowing toggling membership
 struct AddToListSheet: View {
     let item: SwipedItem
+    private let logger = Logger(subsystem: "com.flickswiper.app", category: "AddToListSheet")
     @Query(sort: \UserList.sortOrder) private var lists: [UserList]
     @Query private var entries: [ListEntry]
     @Environment(\.modelContext) private var modelContext
@@ -11,6 +13,7 @@ struct AddToListSheet: View {
     
     @State private var showCreateList = false
     @State private var newListName = ""
+    @State private var persistenceErrorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -32,10 +35,29 @@ struct AddToListSheet: View {
                     // Also add the current item to this new list
                     let entry = ListEntry(listID: list.id, itemID: item.uniqueID)
                     modelContext.insert(entry)
-                    try? modelContext.save()
-                    newListName = ""
+                    do {
+                        try modelContext.save()
+                        // Sync to Firestore if this list is published
+                        let ctx = modelContext
+                        Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+                        newListName = ""
+                    } catch {
+                        logger.error("Failed to create list from AddToListSheet: \(error.localizedDescription)")
+                        persistenceErrorMessage = "We couldn't create this list. Please try again."
+                    }
                 }
                 Button("Cancel", role: .cancel) { newListName = "" }
+            }
+            .alert(
+                "Couldn't Save Changes",
+                isPresented: Binding(
+                    get: { persistenceErrorMessage != nil },
+                    set: { if !$0 { persistenceErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { persistenceErrorMessage = nil }
+            } message: {
+                Text(persistenceErrorMessage ?? "Please try again.")
             }
         }
     }
@@ -101,12 +123,32 @@ struct AddToListSheet: View {
     }
     
     private func toggleMembership(list: UserList) {
-        if let existing = entries.first(where: { $0.listID == list.id && $0.itemID == item.uniqueID }) {
-            modelContext.delete(existing)
-        } else {
-            let entry = ListEntry(listID: list.id, itemID: item.uniqueID)
-            modelContext.insert(entry)
+        do {
+            let listID = list.id
+            let itemID = item.uniqueID
+            let descriptor = FetchDescriptor<ListEntry>(
+                predicate: #Predicate<ListEntry> {
+                    $0.listID == listID && $0.itemID == itemID
+                }
+            )
+            let matches = try modelContext.fetch(descriptor)
+            if let existing = matches.first {
+                modelContext.delete(existing)
+            } else {
+                let entry = ListEntry(listID: list.id, itemID: item.uniqueID)
+                modelContext.insert(entry)
+            }
+            // Deduplicate in case concurrent sheets created duplicates.
+            for duplicate in matches.dropFirst() {
+                modelContext.delete(duplicate)
+            }
+            try modelContext.save()
+            // Sync to Firestore if this list is published
+            let ctx = modelContext
+            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+        } catch {
+            logger.error("Failed to toggle list membership: \(error.localizedDescription)")
+            persistenceErrorMessage = "We couldn't update this list. Please try again."
         }
-        try? modelContext.save()
     }
 }

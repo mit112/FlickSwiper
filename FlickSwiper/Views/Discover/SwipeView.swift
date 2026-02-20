@@ -15,6 +15,7 @@ struct SwipeView: View {
     @State private var pendingRatedTitle: String = ""
     @State private var detailItem: MediaItem?
     @State private var persistenceErrorMessage: String?
+    @State private var ratingPresentationTask: Task<Void, Never>?
     @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
 
     init(mediaService: any MediaServiceProtocol = TMDBService()) {
@@ -104,11 +105,20 @@ struct SwipeView: View {
                     onSeen: {
                         detailItem = nil
                         let swipedItem = viewModel.swipeRight(item: item, context: modelContext)
+                        
+                        // Skip rating prompt if item was already rated
+                        guard swipedItem.personalRating == nil else { return }
+                        
                         pendingRatedItem = swipedItem
                         pendingRatedTitle = item.title
                         
-                        Task {
+                        ratingPresentationTask?.cancel()
+                        let uniqueID = swipedItem.uniqueID
+                        ratingPresentationTask = Task {
                             try? await Task.sleep(for: .seconds(0.3))
+                            guard !Task.isCancelled else { return }
+                            guard pendingRatedItem?.uniqueID == uniqueID else { return }
+                            guard canPresentDiscoverRating(for: uniqueID) else { return }
                             withAnimation(.easeOut(duration: 0.2)) {
                                 showRatingPrompt = true
                             }
@@ -152,6 +162,10 @@ struct SwipeView: View {
             } message: {
                 Text(persistenceErrorMessage ?? "Please try again.")
             }
+            .onDisappear {
+                ratingPresentationTask?.cancel()
+                ratingPresentationTask = nil
+            }
         }
     }
     
@@ -170,13 +184,23 @@ struct SwipeView: View {
                     onSwipeRight: {
                         // Card has already flown off (0.2s delay in MovieCardView)
                         let swipedItem = viewModel.swipeRight(item: item, context: modelContext)
-                        pendingRatedItem = swipedItem
-                        pendingRatedTitle = item.title
                         resetTriggers()
                         
+                        // Skip rating prompt if item was already rated (re-encounter via
+                        // "Show Previously Swiped"). Only prompt for unrated items.
+                        guard swipedItem.personalRating == nil else { return }
+                        
+                        pendingRatedItem = swipedItem
+                        pendingRatedTitle = item.title
+                        
                         // Brief pause for next card to settle, then show rating prompt
-                        Task {
+                        ratingPresentationTask?.cancel()
+                        let uniqueID = swipedItem.uniqueID
+                        ratingPresentationTask = Task {
                             try? await Task.sleep(for: .seconds(0.15))
+                            guard !Task.isCancelled else { return }
+                            guard pendingRatedItem?.uniqueID == uniqueID else { return }
+                            guard canPresentDiscoverRating(for: uniqueID) else { return }
                             withAnimation(.easeOut(duration: 0.2)) {
                                 showRatingPrompt = true
                             }
@@ -276,22 +300,18 @@ struct SwipeView: View {
     
     /// Save the given item to the watchlist and remove it from the stack
     /// without triggering a rating prompt.
+    /// Delegates to the ViewModel's `swipeUp` which enforces direction transition
+    /// policy (won't demote "seen" items) and records undo state.
     private func saveToWatchlist(item: MediaItem) {
-        // Add to undo stack so the user can undo watchlist actions
-        viewModel.addToUndoStack(item: item, direction: .watchlist)
+        viewModel.swipeUp(item: item, context: modelContext)
+    }
 
-        do {
-            let sourcePlatform = viewModel.selectedMethod.watchProviderID != nil
-                ? viewModel.selectedMethod.rawValue
-                : nil
-            _ = try SwipedItemStore(context: modelContext)
-                .saveToWatchlist(from: item, sourcePlatform: sourcePlatform)
-            // Remove the card from the stack and treat it as swiped
-            viewModel.removeCardFromStack(item: item)
-        } catch {
-            logger.error("Failed to save watchlist item: \(error.localizedDescription)")
-            persistenceErrorMessage = "We couldn't save this item to your watchlist. Please try again."
-        }
+    private func canPresentDiscoverRating(for uniqueID: String) -> Bool {
+        let id = uniqueID
+        let descriptor = FetchDescriptor<SwipedItem>(
+            predicate: #Predicate<SwipedItem> { $0.uniqueID == id }
+        )
+        return (try? modelContext.fetch(descriptor).first) != nil
     }
     
     // MARK: - Loading View
@@ -411,5 +431,5 @@ struct SwipeView: View {
 
 #Preview {
     SwipeView()
-        .modelContainer(for: [SwipedItem.self], inMemory: true)
+        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

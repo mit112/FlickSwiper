@@ -17,6 +17,8 @@ struct FlickSwiperHomeView: View {
     @Query(sort: \UserList.sortOrder) private var userLists: [UserList]
     @Query private var allEntries: [ListEntry]
     @Environment(\.modelContext) private var modelContext
+    @Environment(AuthService.self) private var authService
+    @Environment(FollowedListSyncService.self) private var syncService
     
     @State private var searchText = ""
     @State private var selectedItem: SwipedItem?
@@ -48,6 +50,9 @@ struct FlickSwiperHomeView: View {
             }
             .navigationDestination(for: UserList.self) { list in
                 listDetailView(for: list)
+            }
+            .navigationDestination(for: FollowedList.self) { followedList in
+                FollowedListDetailView(followedList: followedList)
             }
             .sheet(item: $selectedItem) { item in
                 SeenItemDetailView(item: item)
@@ -104,6 +109,19 @@ struct FlickSwiperHomeView: View {
             } message: {
                 Text(persistenceErrorMessage ?? "Please try again.")
             }
+            .onAppear {
+                // Activate real-time sync for followed lists when user is signed in
+                if authService.isSignedIn && !syncService.isActive {
+                    syncService.activate(context: modelContext)
+                }
+            }
+            .onChange(of: authService.isSignedIn) { _, isSignedIn in
+                if isSignedIn && !syncService.isActive {
+                    syncService.activate(context: modelContext)
+                } else if !isSignedIn {
+                    syncService.deactivate()
+                }
+            }
         }
     }
     
@@ -116,6 +134,9 @@ struct FlickSwiperHomeView: View {
                 if !watchlistItems.isEmpty {
                     watchlistSection
                 }
+                
+                // Following (only shows if user follows any lists)
+                FollowingSection()
                 
                 // Smart Collections
                 SmartCollectionsSection()
@@ -234,7 +255,9 @@ struct FlickSwiperHomeView: View {
     // MARK: - Search Results
     
     private var searchResultsView: some View {
-        let filtered = seenItems.filter {
+        // Search across both seen and watchlist items, sorted by most recent first
+        let allLibrary = (seenItems + watchlistItems).sorted { $0.dateSwiped > $1.dateSwiped }
+        let filtered = allLibrary.filter {
             $0.title.localizedCaseInsensitiveContains(searchText)
         }
         let columns = [
@@ -251,8 +274,22 @@ struct FlickSwiperHomeView: View {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(filtered) { item in
                             SeenItemCard(item: item)
+                                .overlay(alignment: .topLeading) {
+                                    if item.isWatchlist {
+                                        Image(systemName: "bookmark.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.white)
+                                            .padding(3)
+                                            .background(.blue, in: RoundedRectangle(cornerRadius: 3))
+                                            .padding(6)
+                                    }
+                                }
                                 .onTapGesture {
-                                    selectedItem = item
+                                    if item.isWatchlist {
+                                        selectedWatchlistItem = item
+                                    } else {
+                                        selectedItem = item
+                                    }
                                 }
                         }
                     }
@@ -266,10 +303,10 @@ struct FlickSwiperHomeView: View {
     // MARK: - List Detail (resolved from entries)
     
     private func listDetailView(for list: UserList) -> some View {
-        let listItems = list.items(entries: allEntries, allItems: seenItems)
-        return FilteredGridView(
+        // items: [] because sourceList triggers live resolution via FilteredGridView's own @Query
+        FilteredGridView(
             title: list.name,
-            items: listItems,
+            items: [],
             initialFilter: .all,
             listName: list.name,
             sourceList: list
@@ -298,5 +335,5 @@ struct FlickSwiperHomeView: View {
 
 #Preview {
     FlickSwiperHomeView()
-        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self], inMemory: true)
+        .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

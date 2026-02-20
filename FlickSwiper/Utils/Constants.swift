@@ -38,8 +38,38 @@ enum Constants {
     
     // MARK: - URLs
     
-    enum URLs {
+    nonisolated enum URLs {
         static let privacyPolicy = URL(string: "https://mit112.github.io/FlickSwiper/")!
         static let contactEmail = URL(string: "mailto:mitsheth82@gmail.com")!
+        /// Base URL for Universal Links (shared list deep links)
+        static let deepLinkBase = "https://mit112.github.io/FlickSwiper"
+        /// App Store URL for fallback page redirect (update with real ID after approval)
+        static let appStore = URL(string: "https://apps.apple.com/app/flickswiper/id0000000000")!
+    }
+    
+    // MARK: - Firestore
+    
+    /// `nonisolated` so these can be read from any actor context.
+    nonisolated enum Firestore {
+        static let usersCollection = "users"
+        static let publishedListsCollection = "publishedLists"
+        static let followsCollection = "follows"
+    }
+    
+    // MARK: - Deep Links
+    
+    nonisolated enum DeepLink {
+        /// Path prefix for shared list links: /FlickSwiper/list/{docID}
+        static let listPathPrefix = "/FlickSwiper/list/"
+        
+        /// Extract a Firestore doc ID from a Universal Link URL.
+        /// Returns nil if the URL doesn't match the expected pattern.
+        nonisolated static func listID(from url: URL) -> String? {
+            let path = url.path
+            guard path.hasPrefix(listPathPrefix) else { return nil }
+            let docID = String(path.dropFirst(listPathPrefix.count))
+            guard !docID.isEmpty else { return nil }
+            return docID
+        }
     }
 }

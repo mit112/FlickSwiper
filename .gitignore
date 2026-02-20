@@ -18,6 +18,7 @@ iOSInjectionProject/
 
 # Secrets — NEVER commit API keys
 FlickSwiper/Config/Secrets.xcconfig
+FlickSwiper/GoogleService-Info.plist
 
 # macOS
 **/.DS_Store

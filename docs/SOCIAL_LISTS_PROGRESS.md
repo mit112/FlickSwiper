@@ -29,10 +29,11 @@
 - [x] `DeepLinkHandlerTests.swift` — 9 tests: valid links, wrong host, missing doc ID, wrong path, root path, listID extraction
 
 ### Verification
-- [ ] Can sign in with Apple → Firebase user created
-- [ ] User doc created in Firestore `users/{uid}`
-- [ ] Can publish a list → `publishedLists` doc created with correct data
-- [ ] Can read a published list back by doc ID
+- [x] All unit tests passing (21 tests: 12 DisplayNameValidator + 9 DeepLinkHandler)
+- [ ] Can sign in with Apple → Firebase user created (needs physical device)
+- [ ] User doc created in Firestore `users/{uid}` (needs physical device)
+- [ ] Can publish a list → `publishedLists` doc created with correct data (needs physical device)
+- [ ] Can read a published list back by doc ID (needs physical device)
 
 ---
 
@@ -209,9 +210,9 @@ Fire-and-forget `ListPublisher.syncIfPublished(list:)` call after every successf
 - [x] Firestore security rules prepared (`docs/firestore.rules`) — ready to copy-paste into Firebase Console. Includes data validation on creates, immutable follows, owner-only writes on published lists.
 
 ### Still Needed
-- [ ] Push `docs/` to GitHub (AASA file, fallback pages, updated privacy policy)
-- [ ] Deploy Firestore security rules to Firebase Console
-- [ ] Create composite index: `follows` collection, `followerUID` ASC + `followedAt` DESC
+- [x] Push `docs/` to GitHub (AASA file, fallback pages, updated privacy policy)
+- [x] Deploy Firestore security rules to Firebase Console
+- [ ] Create composite index: `follows` collection, `followerUID` ASC + `followedAt` DESC (Firebase may auto-prompt on first query)
 - [ ] Update App Store ID in `docs/list/index.html` and `docs/404.html`
 - [ ] V2 → V3 migration test (CRITICAL)
 - [ ] End-to-end testing of all flows on physical device

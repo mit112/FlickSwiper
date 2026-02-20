@@ -8,9 +8,19 @@ struct UserListCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: "list.bullet")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+            HStack {
+                Image(systemName: "list.bullet")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                
+                Spacer()
+                
+                if list.isPublished {
+                    Image(systemName: "link")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
             
             Spacer()
             
@@ -28,7 +38,7 @@ struct UserListCard: View {
         .background(cardGradient)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(list.name) list, \(itemCount) items")
+        .accessibilityLabel("\(list.name) list, \(itemCount) items\(list.isPublished ? ", shared" : "")")
         .accessibilityAddTraits(.isButton)
     }
     
