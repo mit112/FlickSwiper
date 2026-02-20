@@ -83,7 +83,7 @@ struct AddToListSheet: View {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(Color.accentColor, in: Capsule())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.black)
                 }
             }
             .padding()
@@ -101,7 +101,7 @@ struct AddToListSheet: View {
                             Spacer()
                             if isInList(list) {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.accentColor)
                                     .fontWeight(.semibold)
                             }
                         }

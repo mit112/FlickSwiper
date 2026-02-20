@@ -78,7 +78,7 @@ private struct MethodRowButton: View {
             } placeholder: {
                 Image(systemName: symbolName)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(isSelected ? .black : .primary)
             }
             .frame(width: 32, height: 32)
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -89,7 +89,7 @@ private struct MethodRowButton: View {
         } else {
             Image(systemName: symbolName)
                 .font(.body.weight(.medium))
-                .foregroundStyle(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? .black : .primary)
                 .frame(width: 32, height: 32)
                 .background(
                     isSelected ? Color.accentColor : Color.gray.opacity(0.15),
@@ -139,7 +139,7 @@ struct DiscoveryHorizontalSelector: View {
                                 : Color.gray.opacity(0.15),
                             in: Capsule()
                         )
-                        .foregroundStyle(method == selectedMethod ? .white : .primary)
+                        .foregroundStyle(method == selectedMethod ? .black : .primary)
                     }
                     .buttonStyle(.plain)
                 }

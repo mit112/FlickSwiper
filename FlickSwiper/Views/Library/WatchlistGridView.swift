@@ -68,14 +68,6 @@ struct WatchlistGridView: View {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(displayedItems) { item in
                     SeenItemCard(item: item)
-                        .overlay(alignment: .topLeading) {
-                            Image(systemName: "bookmark.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.white)
-                                .padding(3)
-                                .background(.blue, in: RoundedRectangle(cornerRadius: 3))
-                                .padding(6)
-                        }
                         .onTapGesture {
                             selectedItem = item
                         }
@@ -209,6 +201,13 @@ struct WatchlistGridView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                 }
+                .mask(
+                    HStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: 24)
+                    }
+                )
             }
         }
     }

@@ -11,6 +11,7 @@ struct SettingsView: View {
     
     @AppStorage(Constants.StorageKeys.includeSwipedItems) private var includeSwipedItems: Bool = false
     @AppStorage(Constants.StorageKeys.hasSeenSwipeTutorial) private var hasSeenTutorial = false
+    @AppStorage(Constants.StorageKeys.ratingDisplayOption) private var ratingDisplayRaw: String = RatingDisplayOption.tmdb.rawValue
     @State private var showResetConfirmation = false
     @State private var resetType: ResetType = .skipped
     @State private var showResetWatchlistConfirmation = false
@@ -42,6 +43,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                // Force standard gray section headers (not accent-tinted)
                 // MARK: - Account Section
                 Section {
                     if authService.isSignedIn {
@@ -58,7 +60,7 @@ struct SettingsView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "pencil")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.accentColor)
                                 Text("Edit Display Name")
                                     .foregroundStyle(.primary)
                             }
@@ -91,7 +93,7 @@ struct SettingsView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "person.crop.circle.badge.plus")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.accentColor)
                                 Text("Sign In with Apple")
                                     .foregroundStyle(.primary)
                                 Spacer()
@@ -103,6 +105,7 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Account")
+                        .foregroundStyle(Color(.secondaryLabel))
                 } footer: {
                     if authService.isSignedIn {
                         Text("Your account is used for sharing lists with friends. Your library stays on your device.")
@@ -128,12 +131,30 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Statistics")
+                        .foregroundStyle(Color(.secondaryLabel))
+                }
+                
+                // MARK: - Display Section
+                Section {
+                    Picker(selection: $ratingDisplayRaw) {
+                        ForEach(RatingDisplayOption.allCases) { option in
+                            Text(option.rawValue).tag(option.rawValue)
+                        }
+                    } label: {
+                        Text("Rating on Cards")
+                    }
+                } header: {
+                    Text("Display")
+                        .foregroundStyle(Color(.secondaryLabel))
+                } footer: {
+                    Text("Choose which rating appears under posters in your library.")
                 }
                 
                 Section {
                     Toggle("Show Previously Swiped", isOn: $includeSwipedItems)
                 } header: {
                     Text("Filters")
+                        .foregroundStyle(Color(.secondaryLabel))
                 } footer: {
                     Text("Enable this to see titles you've already swiped on. Useful for re-evaluating your choices.")
                 }
@@ -144,7 +165,7 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "hand.draw.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.accentColor)
                             Text("Replay Swipe Tutorial")
                                 .foregroundStyle(.primary)
                         }
@@ -186,6 +207,7 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Reset")
+                        .foregroundStyle(Color(.secondaryLabel))
                 } footer: {
                     Text("Reset skipped items to see them again. Reset all will clear your entire swipe history.")
                 }
@@ -217,6 +239,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 } header: {
                     Text("About")
+                        .foregroundStyle(Color(.secondaryLabel))
                 }
                 
                 // MARK: - Support Section
@@ -224,7 +247,7 @@ struct SettingsView: View {
                     Link(destination: Constants.URLs.privacyPolicy) {
                         HStack {
                             Image(systemName: "hand.raised.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.accentColor)
                             Text("Privacy Policy")
                                 .foregroundStyle(.primary)
                             Spacer()
@@ -237,7 +260,7 @@ struct SettingsView: View {
                     Link(destination: Constants.URLs.contactEmail) {
                         HStack {
                             Image(systemName: "envelope.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.accentColor)
                             Text("Contact Us")
                                 .foregroundStyle(.primary)
                             Spacer()
@@ -248,6 +271,7 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Support")
+                        .foregroundStyle(Color(.secondaryLabel))
                 }
             }
             .navigationTitle("Settings")

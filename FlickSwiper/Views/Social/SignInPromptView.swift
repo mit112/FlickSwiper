@@ -32,7 +32,7 @@ struct SignInPromptView: View {
                 
                 Image(systemName: "person.crop.circle.badge.plus")
                     .font(.system(size: 56))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accentColor)
                 
                 VStack(spacing: 8) {
                     Text("Sign In Required")

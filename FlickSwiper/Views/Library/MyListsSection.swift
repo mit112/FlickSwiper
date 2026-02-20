@@ -49,7 +49,7 @@ struct MyListsSection: View {
                                     coverPosterPath: listItems.first?.posterPath
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressableButtonStyle())
                             .contextMenu {
                                 // Publish / Share / Unpublish
                                 if list.isPublished {
@@ -104,13 +104,10 @@ struct MyListsSection: View {
                                 Text("New List")
                                     .font(.caption.weight(.medium))
                             }
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color(.secondaryLabel))
                             .frame(width: 140, height: 110)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                    .foregroundStyle(.secondary.opacity(0.4))
-                            )
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }

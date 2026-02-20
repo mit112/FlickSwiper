@@ -39,7 +39,7 @@ struct SmartCollectionsSection: View {
                                 NavigationLink(value: collection) {
                                     SmartCollectionCard(collection: collection)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(PressableButtonStyle())
                             }
                         }
                         .padding(.horizontal, 16)

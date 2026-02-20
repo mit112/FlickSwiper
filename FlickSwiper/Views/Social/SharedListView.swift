@@ -157,8 +157,8 @@ struct SharedListView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
-                .foregroundStyle(.white)
-                .background(.blue, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(.black)
+                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12))
             }
             .disabled(isProcessingFollow)
         }

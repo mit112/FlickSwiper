@@ -208,10 +208,9 @@ struct FilteredGridView: View {
                                     .overlay(alignment: .topLeading) {
                                         if item.isWatchlist {
                                             Image(systemName: "bookmark.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(.white)
-                                                .padding(3)
-                                                .background(.blue, in: RoundedRectangle(cornerRadius: 3))
+                                                .font(.caption)
+                                                .foregroundStyle(Color.accentColor)
+                                                .shadow(color: .black.opacity(0.6), radius: 3)
                                                 .padding(6)
                                         }
                                     }
@@ -352,7 +351,7 @@ struct FilteredGridView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(width: 56, height: 56)
-                        .background(.blue, in: Circle())
+                        .background(Color.accentColor, in: Circle())
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 }
                 .padding(20)
@@ -494,7 +493,7 @@ struct FilteredGridView: View {
                     // Rating chips
                     ForEach(availableRatings, id: \.self) { stars in
                         FilterChip(
-                            label: String(repeating: "\u{2605}", count: stars),
+                            label: "\(stars)\u{2605}",
                             isActive: ratingFilter == stars,
                             action: { ratingFilter = ratingFilter == stars ? nil : stars }
                         )
@@ -529,6 +528,13 @@ struct FilteredGridView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
+            .mask(
+                HStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 24)
+                }
+            )
         }
     }
     

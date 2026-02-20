@@ -196,7 +196,7 @@ struct SearchView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
                     .background(Color.accentColor, in: Capsule())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
             }
         }
         .padding()
@@ -350,7 +350,7 @@ struct SearchResultRow: View {
                     .font(.body)
             } else if isInWatchlist {
                 Image(systemName: "bookmark.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accentColor)
                     .font(.body)
             }
         }
@@ -447,13 +447,13 @@ struct SearchResultDetailView: View {
                     } else if isInWatchlist {
                         HStack {
                             Image(systemName: "bookmark.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.accentColor)
                             Text("In your watchlist")
                                 .fontWeight(.medium)
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
                     } else {
                         VStack(spacing: 10) {
@@ -481,8 +481,8 @@ struct SearchResultDetailView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(.blue, in: RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
+                                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.black)
                             }
                         }
                         .padding(.horizontal)

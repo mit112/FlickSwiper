@@ -69,11 +69,11 @@ private struct GenreButton: View {
                     .font(.subheadline.weight(.medium))
                 Spacer()
             }
-            .foregroundStyle(isSelected ? .white : .primary)
+            .foregroundStyle(isSelected ? .black : .primary)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(
-                isSelected ? Color.orange : Color.gray.opacity(0.15),
+                isSelected ? Color.accentColor : Color.gray.opacity(0.15),
                 in: RoundedRectangle(cornerRadius: 12)
             )
         }

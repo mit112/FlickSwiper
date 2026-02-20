@@ -195,7 +195,7 @@ struct FlickSwiperHomeView: View {
                 } label: {
                     Text("See All")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal, 16)
@@ -277,10 +277,9 @@ struct FlickSwiperHomeView: View {
                                 .overlay(alignment: .topLeading) {
                                     if item.isWatchlist {
                                         Image(systemName: "bookmark.fill")
-                                            .font(.caption2)
-                                            .foregroundStyle(.white)
-                                            .padding(3)
-                                            .background(.blue, in: RoundedRectangle(cornerRadius: 3))
+                                            .font(.caption)
+                                            .foregroundStyle(Color.accentColor)
+                                            .shadow(color: .black.opacity(0.6), radius: 3)
                                             .padding(6)
                                     }
                                 }

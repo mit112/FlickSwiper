@@ -19,7 +19,7 @@ struct FilterChip: View {
                         : AnyShapeStyle(Color.gray.opacity(0.15)),
                     in: Capsule()
                 )
-                .foregroundStyle(isActive ? .white : .primary)
+                .foregroundStyle(isActive ? .black : .primary)
         }
         .buttonStyle(.plain)
     }

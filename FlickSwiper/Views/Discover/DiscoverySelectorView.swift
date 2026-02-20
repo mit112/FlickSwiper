@@ -67,11 +67,11 @@ struct DiscoverySelectorView: View {
                 } label: {
                     Text(filter.shortLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(contentTypeFilter == filter ? .white : .secondary)
+                        .foregroundStyle(contentTypeFilter == filter ? .black : .secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(
-                            contentTypeFilter == filter ? Color.blue : Color.gray.opacity(0.15),
+                            contentTypeFilter == filter ? Color.accentColor : Color.gray.opacity(0.15),
                             in: Capsule()
                         )
                 }
@@ -83,10 +83,10 @@ struct DiscoverySelectorView: View {
             } label: {
                 Image(systemName: "slider.horizontal.3")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(hasActiveFilters ? .white : .secondary)
+                    .foregroundStyle(hasActiveFilters ? .black : .secondary)
                     .padding(10)
                     .background(
-                        hasActiveFilters ? Color.orange : Color.gray.opacity(0.15),
+                        hasActiveFilters ? Color.accentColor : Color.gray.opacity(0.15),
                         in: Circle()
                     )
             }

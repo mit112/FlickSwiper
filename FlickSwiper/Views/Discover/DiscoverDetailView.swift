@@ -58,8 +58,8 @@ struct DiscoverDetailView: View {
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(.blue, in: RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(.white)
+                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(.black)
                         }
                     }
                     .padding(.horizontal)

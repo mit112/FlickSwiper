@@ -16,7 +16,7 @@ struct WatchlistItemDetailView: View {
                     
                     HStack {
                         Image(systemName: "bookmark.fill")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.accentColor)
                         Text("Saved to watchlist")
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -80,11 +80,11 @@ struct DiscoverFiltersSheet: View {
                                 Text(option.rawValue)
                                     .font(.caption.weight(.semibold))
                             }
-                            .foregroundStyle(selectedSort == option ? .white : .secondary)
+                            .foregroundStyle(selectedSort == option ? .black : .secondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(
-                                selectedSort == option ? Color.blue : Color.gray.opacity(0.15),
+                                selectedSort == option ? Color.accentColor : Color.gray.opacity(0.15),
                                 in: Capsule()
                             )
                         }
@@ -92,6 +92,13 @@ struct DiscoverFiltersSheet: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .mask(
+                HStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 24)
+                }
+            )
         }
     }
 
@@ -110,7 +117,7 @@ struct DiscoverFiltersSheet: View {
                     } label: {
                         Text("Clear")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -132,11 +139,11 @@ struct DiscoverFiltersSheet: View {
                                 Text(genre.name)
                                     .font(.caption.weight(.semibold))
                             }
-                            .foregroundStyle(selectedGenre == genre ? .white : .secondary)
+                            .foregroundStyle(selectedGenre == genre ? .black : .secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
                             .background(
-                                selectedGenre == genre ? Color.orange : Color.gray.opacity(0.15),
+                                selectedGenre == genre ? Color.accentColor : Color.gray.opacity(0.15),
                                 in: Capsule()
                             )
                         }
@@ -144,6 +151,13 @@ struct DiscoverFiltersSheet: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .mask(
+                HStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 24)
+                }
+            )
         }
     }
 
@@ -163,7 +177,7 @@ struct DiscoverFiltersSheet: View {
                     } label: {
                         Text("Clear")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }

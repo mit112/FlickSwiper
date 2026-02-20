@@ -12,7 +12,7 @@ struct SwipeTutorialOverlay: View {
     private let steps: [(direction: String, symbol: String, label: String, subtitle: String, color: Color, angle: Angle, arrowAxis: Axis)] = [
         ("→", "checkmark.circle.fill", "Swipe Right", "Already seen it", .green, .degrees(0), .horizontal),
         ("←", "xmark.circle.fill", "Swipe Left", "Not interested, skip", .gray, .degrees(180), .horizontal),
-        ("↑", "bookmark.circle.fill", "Swipe Up", "Save to watchlist", .blue, .degrees(-90), .vertical),
+        ("↑", "bookmark.circle.fill", "Swipe Up", "Save to watchlist", Color.accentColor, .degrees(-90), .vertical),
     ]
 
     var body: some View {
@@ -159,7 +159,7 @@ struct SwipeTutorialOverlay: View {
     }
 
     private func dismiss() {
-        withAnimation(.easeOut(duration: 0.25)) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
             onDismiss()
         }
     }

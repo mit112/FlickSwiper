@@ -13,7 +13,7 @@ struct SelectableItemCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
+                            .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
                     )
                 
                 Text(item.title)
@@ -25,7 +25,7 @@ struct SelectableItemCard: View {
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accentColor)
                     .background(Circle().fill(.white).padding(2))
                     .offset(x: -6, y: 6)
             }
