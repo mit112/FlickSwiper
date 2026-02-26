@@ -1,0 +1,18 @@
+{
+  "name": "flickswiper-security-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firestore security rules penetration tests for FlickSwiper",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --verbose --forceExit",
+    "test:emulator": "firebase emulators:exec --only firestore --project flickswiper-a9ff4 'npm test'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.0",
+    "firebase": "^10.0.0",
+    "jest": "^29.0.0"
+  },
+  "jest": {
+    "testTimeout": 15000
+  }
+}

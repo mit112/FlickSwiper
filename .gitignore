@@ -56,3 +56,12 @@ xcshareddata/IDEWorkspaceChecks.plist
 .build/
 Packages/
 Package.resolved
+
+# Security tests
+security-tests/node_modules/
+
+# Firebase emulator data
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
