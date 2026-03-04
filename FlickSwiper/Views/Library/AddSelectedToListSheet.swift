@@ -11,6 +11,7 @@ struct AddSelectedToListSheet: View {
     @Query private var entries: [ListEntry]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(CloudSyncService.self) private var cloudSync
     @State private var persistenceErrorMessage: String?
     
     var body: some View {
@@ -71,12 +72,23 @@ struct AddSelectedToListSheet: View {
         do {
             let currentEntryIDs = try fetchCurrentItemIDs(for: list.id)
             let newItemIDs = itemIDs.subtracting(currentEntryIDs)
+            var newEntries: [ListEntry] = []
             for itemID in newItemIDs {
-                modelContext.insert(ListEntry(listID: list.id, itemID: itemID))
+                let entry = ListEntry(listID: list.id, itemID: itemID)
+                entry.ownerUID = cloudSync.currentUserUID
+                modelContext.insert(entry)
+                newEntries.append(entry)
             }
 
             try dedupeEntries(for: list.id)
+            // Update list lastModified
+            list.lastModified = Date()
             try modelContext.save()
+            // Push new entries to cloud
+            for entry in newEntries {
+                cloudSync.pushListEntry(entry)
+            }
+            cloudSync.pushUserList(list)
             // Sync to Firestore if this list is published
             let ctx = modelContext
             Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }

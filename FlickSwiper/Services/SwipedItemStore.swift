@@ -14,13 +14,22 @@ import os
 ///
 /// This prevents a re-encountered item in Discover (with "Show Previously Swiped" ON)
 /// from silently vanishing out of the user's library when swiped left or bookmarked.
+///
+/// Cloud Sync
+/// ──────────
+/// When `cloudSync` is provided, every mutation:
+/// 1. Sets `lastModified = Date()` on the affected record
+/// 2. Sets `ownerUID` on new records (from the signed-in user)
+/// 3. Pushes the change to Firestore via write-through
 @MainActor
 struct SwipedItemStore {
     private let context: ModelContext
+    private let cloudSync: CloudSyncService?
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "Persistence")
 
-    init(context: ModelContext) {
+    init(context: ModelContext, cloudSync: CloudSyncService? = nil) {
         self.context = context
+        self.cloudSync = cloudSync
     }
 
     // MARK: - Direction Hierarchy
@@ -48,14 +57,18 @@ struct SwipedItemStore {
             // "seen" is the highest rank — always allowed
             existing.swipeDirection = SwipedItem.directionSeen
             existing.dateSwiped = Date()
+            existing.lastModified = Date()
             if let sp = sourcePlatform { existing.sourcePlatform = sp }
             try save()
+            cloudSync?.pushSwipedItem(existing)
             return existing
         }
         let swipedItem = SwipedItem(from: mediaItem, direction: .seen)
         swipedItem.sourcePlatform = sourcePlatform
+        swipedItem.ownerUID = cloudSync?.currentUserUID
         context.insert(swipedItem)
         try save()
+        cloudSync?.pushSwipedItem(swipedItem)
         return swipedItem
     }
 
@@ -66,43 +79,59 @@ struct SwipedItemStore {
             if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionWatchlist) {
                 existing.swipeDirection = SwipedItem.directionWatchlist
                 existing.dateSwiped = Date()
+                existing.lastModified = Date()
                 if let sp = sourcePlatform { existing.sourcePlatform = sp }
                 try save()
+                cloudSync?.pushSwipedItem(existing)
             }
             // Either way, return the existing record unchanged or updated
             return existing
         }
         let swipedItem = SwipedItem(from: mediaItem, direction: .watchlist)
         swipedItem.sourcePlatform = sourcePlatform
+        swipedItem.ownerUID = cloudSync?.currentUserUID
         context.insert(swipedItem)
         try save()
+        cloudSync?.pushSwipedItem(swipedItem)
         return swipedItem
     }
 
     func moveWatchlistToSeen(_ item: SwipedItem) throws {
         item.swipeDirection = SwipedItem.directionSeen
         item.dateSwiped = Date()
+        item.lastModified = Date()
         try save()
+        cloudSync?.pushSwipedItem(item)
     }
 
     func remove(_ item: SwipedItem) throws {
-        // Clean up any ListEntries referencing this item to prevent orphans
         let itemID = item.uniqueID
+
+        // Clean up any ListEntries referencing this item to prevent orphans
         let descriptor = FetchDescriptor<ListEntry>(
             predicate: #Predicate<ListEntry> { $0.itemID == itemID }
         )
         let entries = try context.fetch(descriptor)
+        let entryIDs = entries.map(\.id)
         for entry in entries {
             context.delete(entry)
         }
 
         context.delete(item)
         try save()
+
+        // Push deletions to Firestore
+        cloudSync?.deleteSwipedItem(uniqueID: itemID)
+        if !entryIDs.isEmpty {
+            cloudSync?.bulkDeleteListEntries(entryIDs: entryIDs)
+        }
     }
 
     func setPersonalRating(_ rating: Int, for item: SwipedItem) throws {
         item.personalRating = rating
+        item.lastModified = Date()
         try save()
+        cloudSync?.pushSwipedItem(item)
     }
 
     // MARK: - Lookup

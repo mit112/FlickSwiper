@@ -8,6 +8,7 @@ struct WatchlistRatingSheet: View {
     let onDismiss: () -> Void
     
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "WatchlistRating")
     @State private var persistenceErrorMessage: String?
     
@@ -27,7 +28,7 @@ struct WatchlistRatingSheet: View {
                     ForEach(1...5, id: \.self) { star in
                         Button {
                             do {
-                                try SwipedItemStore(context: modelContext).setPersonalRating(star, for: item)
+                                try SwipedItemStore(context: modelContext, cloudSync: cloudSync).setPersonalRating(star, for: item)
                                 onDismiss()
                             } catch {
                                 logger.error("Failed to save watchlist rating: \(error.localizedDescription)")

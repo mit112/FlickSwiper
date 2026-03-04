@@ -45,7 +45,10 @@ struct SharedListView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading {
+                if !authService.isSignedIn && !showSignInPrompt {
+                    // Must sign in before we can fetch from Firestore
+                    signInRequiredView
+                } else if isLoading {
                     loadingView
                 } else if let error = errorMessage {
                     errorView(message: error)
@@ -67,14 +70,17 @@ struct SharedListView: View {
                 }
             }
             .sheet(isPresented: $showSignInPrompt) {
-                SignInPromptView(reason: "follow this list") {
-                    // After sign-in, retry follow
-                    performFollow()
+                SignInPromptView(reason: "view and follow this list") {
+                    // After sign-in, load the list
+                    Task { await loadList() }
                 }
             }
         }
         .task {
-            await loadList()
+            // Only load if already signed in
+            if authService.isSignedIn {
+                await loadList()
+            }
         }
     }
     
@@ -219,6 +225,35 @@ struct SharedListView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+        }
+    }
+    
+    private var signInRequiredView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 48))
+                .foregroundStyle(.blue)
+            
+            Text("Sign in to view this list")
+                .font(.headline)
+            
+            Text("You need to sign in with Apple to view shared lists from friends.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            
+            Button {
+                showSignInPrompt = true
+            } label: {
+                Text("Sign In")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .foregroundStyle(.white)
+                    .background(.blue, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(.horizontal, 40)
         }
     }
     

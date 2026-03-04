@@ -14,6 +14,7 @@ struct SearchView: View {
     private var watchlistItems: [SwipedItem]
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
 
     @State private var selectedItem: MediaItem?
     @State private var showRatingPrompt = false
@@ -206,7 +207,7 @@ struct SearchView: View {
 
     private func markAsSeen(_ item: MediaItem) {
         do {
-            let swipedItem = try SwipedItemStore(context: modelContext).markAsSeen(from: item)
+            let swipedItem = try SwipedItemStore(context: modelContext, cloudSync: cloudSync).markAsSeen(from: item)
             selectedItem = nil
             pendingSwipedItem = swipedItem
             pendingTitle = item.title
@@ -223,7 +224,7 @@ struct SearchView: View {
     
     private func saveToWatchlist(_ item: MediaItem) {
         do {
-            _ = try SwipedItemStore(context: modelContext).saveToWatchlist(from: item)
+            _ = try SwipedItemStore(context: modelContext, cloudSync: cloudSync).saveToWatchlist(from: item)
             selectedItem = nil
         } catch {
             logger.error("Failed to save item to watchlist from search: \(error.localizedDescription)")
@@ -248,7 +249,7 @@ struct SearchView: View {
                         Button {
                             if let pendingItem = pendingSwipedItem {
                                 do {
-                                    try SwipedItemStore(context: modelContext).setPersonalRating(star, for: pendingItem)
+                                    try SwipedItemStore(context: modelContext, cloudSync: cloudSync).setPersonalRating(star, for: pendingItem)
                                     showRatingPrompt = false
                                     pendingSwipedItem = nil
                                     pendingTitle = nil

@@ -1,11 +1,14 @@
 import Foundation
 import AuthenticationServices
 import CryptoKit
+import UIKit
 @preconcurrency import FirebaseAuth
+@preconcurrency import FirebaseCore
 @preconcurrency import FirebaseFirestore
+import GoogleSignIn
 import os
 
-/// Manages Sign in with Apple authentication via Firebase Auth
+/// Manages authentication via Firebase Auth (Sign in with Apple + Google Sign-In)
 /// and user profile operations in Firestore.
 ///
 /// Usage: Inject as an environment object at app root.
@@ -123,8 +126,13 @@ final class AuthService: NSObject {
             fullName: appleIDCredential.fullName
         )
         
-        // 5. Sign in to Firebase
-        let authResult = try await Auth.auth().signIn(with: credential)
+        // 5. Sign in to Firebase (with collision detection)
+        let authResult: AuthDataResult
+        do {
+            authResult = try await Auth.auth().signIn(with: credential)
+        } catch let error as NSError where error.code == AuthErrorCode.accountExistsWithDifferentCredential.rawValue {
+            throw AuthError.accountExistsWithDifferentProvider
+        }
         let user = authResult.user
         logger.info("Signed in with Apple. UID: \(user.uid)")
         
@@ -151,9 +159,93 @@ final class AuthService: NSObject {
         }
     }
     
+    // MARK: - Sign In with Google
+    
+    /// Initiates the full Google Sign-In → Firebase Auth flow.
+    /// Call this from a button tap. Throws on cancellation or failure.
+    func signInWithGoogle() async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // 1. Get the client ID from the Firebase configuration
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            throw AuthError.missingGoogleClientID
+        }
+        
+        // 2. Get the topmost view controller for presenting the Google sign-in UI.
+        //    Must traverse the presentedViewController chain because this is often
+        //    called from a SwiftUI .sheet (SignInPromptView), so rootViewController
+        //    alone won't be the topmost.
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            throw AuthError.noRootViewController
+        }
+        var presentingVC = rootViewController
+        while let presented = presentingVC.presentedViewController {
+            presentingVC = presented
+        }
+        
+        // 3. Configure and perform Google Sign-In
+        let config = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = config
+        
+        let result: GIDSignInResult
+        do {
+            result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presentingVC)
+        } catch let error as NSError {
+            // GIDSignInError.canceled = -5
+            if error.domain == "com.google.GIDSignIn" && error.code == -5 {
+                throw AuthError.cancelled
+            }
+            throw error
+        }
+        
+        // 4. Get the ID token from the result
+        guard let idToken = result.user.idToken?.tokenString else {
+            throw AuthError.missingIdentityToken
+        }
+        
+        // 5. Create Firebase credential with Google tokens
+        let credential = GoogleAuthProvider.credential(
+            withIDToken: idToken,
+            accessToken: result.user.accessToken.tokenString
+        )
+        
+        // 6. Sign in to Firebase (with collision detection)
+        let authResult: AuthDataResult
+        do {
+            authResult = try await Auth.auth().signIn(with: credential)
+        } catch let error as NSError where error.code == AuthErrorCode.accountExistsWithDifferentCredential.rawValue {
+            throw AuthError.accountExistsWithDifferentProvider
+        }
+        let user = authResult.user
+        logger.info("Signed in with Google. UID: \(user.uid)")
+        
+        // 7. Create or update Firestore user document
+        //    Google provides the name on every sign-in (unlike Apple).
+        let name = result.user.profile?.name ?? DisplayNameValidator.defaultName
+        try await createOrUpdateUserDoc(uid: user.uid, displayName: name)
+        
+        // 8. Update Firebase Auth profile display name (for consistency)
+        if user.displayName == nil || user.displayName?.isEmpty == true {
+            let changeRequest = user.createProfileChangeRequest()
+            changeRequest.displayName = name
+            try await changeRequest.commitChanges()
+        }
+    }
+    
+    /// Handles a URL callback from Google Sign-In's OAuth redirect.
+    /// Call this from `onOpenURL` before checking for deep links.
+    /// Returns `true` if the URL was consumed by Google Sign-In.
+    func handleGoogleSignInURL(_ url: URL) -> Bool {
+        GIDSignIn.sharedInstance.handle(url)
+    }
+    
     // MARK: - Sign Out
     
     func signOut() throws {
+        // Sign out of Google SDK (no-op if user signed in via Apple)
+        GIDSignIn.sharedInstance.signOut()
         try Auth.auth().signOut()
         logger.info("Signed out")
     }
@@ -167,7 +259,7 @@ final class AuthService: NSObject {
     /// 1. Set all user's publishedLists to isActive = false
     /// 2. Delete all user's follows
     /// 3. Delete user's Firestore profile
-    /// 4. Revoke Apple Sign in token
+    /// 4. Revoke provider token (Google disconnect / Apple invalidation)
     /// 5. Delete Firebase Auth account
     func deleteAccount() async throws {
         guard let user = currentUser else {
@@ -204,12 +296,20 @@ final class AuthService: NSObject {
         try await batch.commit()
         logger.info("Firestore cleanup complete for UID: \(uid)")
         
-        // 4. Revoke Apple Sign in token if available
-        if let token = user.providerData.first(where: { $0.providerID == "apple.com" }) {
-            // Token revocation requires re-authentication in some cases.
-            // For now, we proceed with deletion — Apple credential is invalidated
-            // when the Firebase account is deleted.
-            logger.info("Apple provider found for deletion: \(token.providerID)")
+        // 4. Provider-specific cleanup before account deletion
+        if user.providerData.contains(where: { $0.providerID == "google.com" }) {
+            // Revoke Google access token so the app no longer has access to the user's Google account
+            do {
+                try await GIDSignIn.sharedInstance.disconnect()
+                logger.info("Google provider disconnected for account deletion")
+            } catch {
+                // Non-fatal — proceed with deletion even if Google disconnect fails
+                logger.warning("Google disconnect failed: \(error.localizedDescription)")
+            }
+        } else if user.providerData.contains(where: { $0.providerID == "apple.com" }) {
+            // Apple credential is invalidated when the Firebase account is deleted.
+            // Token revocation would require re-authentication which is disruptive.
+            logger.info("Apple provider found for deletion — credential invalidated with account")
         }
         
         // 5. Delete Firebase Auth account
@@ -261,7 +361,7 @@ final class AuthService: NSObject {
     // MARK: - Firestore User Document
     
     /// Creates the user doc if it doesn't exist, or updates lastActiveAt if it does.
-    /// On first creation, sets the display name from Apple's response.
+    /// On first creation, sets the display name from the auth provider's response.
     private func createOrUpdateUserDoc(uid: String, displayName: String) async throws {
         let docRef = db.collection(Constants.Firestore.usersCollection).document(uid)
         let doc = try await docRef.getDocument()
@@ -329,19 +429,28 @@ final class AuthService: NSObject {
     enum AuthError: LocalizedError {
         case invalidCredential
         case missingIdentityToken
+        case missingGoogleClientID
+        case noRootViewController
         case notSignedIn
         case cancelled
+        case accountExistsWithDifferentProvider
         
         var errorDescription: String? {
             switch self {
             case .invalidCredential:
-                return "Unable to process Apple sign-in credential."
+                return "Unable to process sign-in credential."
             case .missingIdentityToken:
-                return "Apple sign-in did not return an identity token."
+                return "Sign-in did not return an identity token."
+            case .missingGoogleClientID:
+                return "Google Sign-In is not configured correctly."
+            case .noRootViewController:
+                return "Unable to present sign-in. Please try again."
             case .notSignedIn:
                 return "You must be signed in to perform this action."
             case .cancelled:
                 return "Sign-in was cancelled."
+            case .accountExistsWithDifferentProvider:
+                return "An account with this email already exists using a different sign-in method. Please use the original method you signed in with."
             }
         }
     }

@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>REVERSED_CLIENT_ID</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.966147033933-dc8a28v03kh9lq7e27ds82g5ocei0e8n</string>
+			</array>
+		</dict>
+	</array>
 	<key>TMDB_API_TOKEN</key>
 	<string>$(TMDB_API_TOKEN)</string>
 	<key>UILaunchScreen</key>

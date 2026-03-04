@@ -24,6 +24,16 @@ final class UserList {
     /// When this list was last successfully synced to Firestore.
     var lastSyncedAt: Date?
     
+    // MARK: - V4 Cloud Sync Fields
+    
+    /// When this record was last modified (rename, items added/removed).
+    /// Nil for records created before V4 migration.
+    var lastModified: Date?
+    
+    /// Firebase Auth UID of the account that owns this list.
+    /// Nil for records created before first sign-in.
+    var ownerUID: String?
+    
     // MARK: - Initialization
     
     init(name: String, sortOrder: Int = 0) {
@@ -34,6 +44,8 @@ final class UserList {
         self.firestoreDocID = nil
         self.isPublished = false
         self.lastSyncedAt = nil
+        self.lastModified = Date()
+        self.ownerUID = nil
     }
     
     /// Resolve items belonging to this list from all entries and all swiped items

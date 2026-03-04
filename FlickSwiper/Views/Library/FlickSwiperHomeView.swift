@@ -19,6 +19,7 @@ struct FlickSwiperHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AuthService.self) private var authService
     @Environment(FollowedListSyncService.self) private var syncService
+    @Environment(CloudSyncService.self) private var cloudSync
     
     @State private var searchText = ""
     @State private var selectedItem: SwipedItem?
@@ -64,7 +65,7 @@ struct FlickSwiperHomeView: View {
                     item: item,
                     onMarkAsSeen: {
                         do {
-                            try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+                            try SwipedItemStore(context: modelContext, cloudSync: cloudSync).moveWatchlistToSeen(item)
                             selectedWatchlistItem = nil
 
                             ratingItem = item
@@ -79,7 +80,7 @@ struct FlickSwiperHomeView: View {
                     },
                     onRemove: {
                         do {
-                            try SwipedItemStore(context: modelContext).remove(item)
+                            try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
                             selectedWatchlistItem = nil
                         } catch {
                             logger.error("Failed to remove watchlist item: \(error.localizedDescription)")
@@ -334,5 +335,7 @@ struct FlickSwiperHomeView: View {
 
 #Preview {
     FlickSwiperHomeView()
+        .environment(FollowedListSyncService())
+        .environment(CloudSyncService())
         .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

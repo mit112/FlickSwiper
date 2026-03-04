@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AuthService.self) private var authService
     @Environment(FollowedListSyncService.self) private var syncService
+    @Environment(CloudSyncService.self) private var cloudSync
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "SettingsView")
     
     @AppStorage(Constants.StorageKeys.includeSwipedItems) private var includeSwipedItems: Bool = false
@@ -94,7 +95,7 @@ struct SettingsView: View {
                             HStack {
                                 Image(systemName: "person.crop.circle.badge.plus")
                                     .foregroundStyle(Color.accentColor)
-                                Text("Sign In with Apple")
+                                Text("Sign In")
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 Text("For list sharing")
@@ -108,9 +109,60 @@ struct SettingsView: View {
                         .foregroundStyle(Color(.secondaryLabel))
                 } footer: {
                     if authService.isSignedIn {
-                        Text("Your account is used for sharing lists with friends. Your library stays on your device.")
+                        Text("Your account is used for sharing lists and backing up your library to the cloud.")
                     } else {
-                        Text("Sign in to publish and follow shared lists. Optional \u{2014} all other features work without an account.")
+                        Text("Sign in with Apple or Google to back up your library and share lists with friends. Optional \u{2014} all other features work without an account.")
+                    }
+                }
+                
+                // MARK: - Cloud Sync Section
+                if authService.isSignedIn {
+                    Section {
+                        HStack {
+                            Text("Sync Status")
+                            Spacer()
+                            switch cloudSync.syncState {
+                            case .idle:
+                                Text("Idle")
+                                    .foregroundStyle(.secondary)
+                            case .syncing:
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Syncing\u{2026}")
+                                        .foregroundStyle(.secondary)
+                                }
+                            case .synced(let date):
+                                Text("Synced \(date.formatted(.relative(presentation: .named)))")
+                                    .foregroundStyle(.secondary)
+                            case .failed(let message):
+                                Text("Failed")
+                                    .foregroundStyle(.red)
+                                    .help(message)
+                            }
+                        }
+                        
+                        Button {
+                            Task {
+                                await cloudSync.syncIfNeeded(context: modelContext)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(Color.accentColor)
+                                Text("Sync Now")
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .disabled({
+                            if case .syncing = cloudSync.syncState { return true }
+                            return false
+                        }())
+                    } header: {
+                        Text("Cloud Backup")
+                            .foregroundStyle(Color(.secondaryLabel))
+                    } footer: {
+                        Text("Your library is automatically backed up when signed in. Changes sync every 5 minutes and on each app launch.")
                     }
                 }
                 
@@ -399,14 +451,20 @@ struct SettingsView: View {
         
         do {
             let skippedItems = try modelContext.fetch(descriptor)
+            let skippedIDs = skippedItems.map(\.uniqueID)
             // Clean up any ListEntries referencing these items (defensive — skipped
             // items normally aren't in lists, but avoids orphans if state drifted)
-            let skippedIDs = Set(skippedItems.map(\.uniqueID))
-            try deleteOrphanedEntries(for: skippedIDs)
+            let orphanedEntryIDs = try collectEntryIDs(for: Set(skippedIDs))
+            try deleteOrphanedEntries(for: Set(skippedIDs))
             for item in skippedItems {
                 modelContext.delete(item)
             }
             try modelContext.save()
+            // Push deletes to Firestore
+            cloudSync.bulkDeleteSwipedItems(uniqueIDs: skippedIDs)
+            if !orphanedEntryIDs.isEmpty {
+                cloudSync.bulkDeleteListEntries(entryIDs: orphanedEntryIDs)
+            }
             refreshCounts()
         } catch {
             logger.error("Error resetting skipped items: \(error.localizedDescription)")
@@ -416,16 +474,21 @@ struct SettingsView: View {
     
     private func resetAllSwipedItems() {
         do {
-            // Delete in-memory and save once so the operation is all-or-nothing at the save boundary.
+            // Gather IDs before deleting so we can push to Firestore
             let allEntries = try modelContext.fetch(FetchDescriptor<ListEntry>())
+            let entryIDs = allEntries.map(\.id)
             for entry in allEntries {
                 modelContext.delete(entry)
             }
             let allSwipedItems = try modelContext.fetch(FetchDescriptor<SwipedItem>())
+            let itemIDs = allSwipedItems.map(\.uniqueID)
             for item in allSwipedItems {
                 modelContext.delete(item)
             }
             try modelContext.save()
+            // Push deletes to Firestore
+            cloudSync.bulkDeleteSwipedItems(uniqueIDs: itemIDs)
+            cloudSync.bulkDeleteListEntries(entryIDs: entryIDs)
             refreshCounts()
         } catch {
             logger.error("Error resetting all swiped items: \(error.localizedDescription)")
@@ -440,18 +503,39 @@ struct SettingsView: View {
         
         do {
             let watchlistItems = try modelContext.fetch(descriptor)
+            let watchlistUniqueIDs = watchlistItems.map(\.uniqueID)
             // Clean up ListEntries that reference these watchlist items
-            let watchlistIDs = Set(watchlistItems.map(\.uniqueID))
-            try deleteOrphanedEntries(for: watchlistIDs)
+            let orphanedEntryIDs = try collectEntryIDs(for: Set(watchlistUniqueIDs))
+            try deleteOrphanedEntries(for: Set(watchlistUniqueIDs))
             for item in watchlistItems {
                 modelContext.delete(item)
             }
             try modelContext.save()
+            // Push deletes to Firestore
+            cloudSync.bulkDeleteSwipedItems(uniqueIDs: watchlistUniqueIDs)
+            if !orphanedEntryIDs.isEmpty {
+                cloudSync.bulkDeleteListEntries(entryIDs: orphanedEntryIDs)
+            }
             refreshCounts()
         } catch {
             logger.error("Error resetting watchlist items: \(error.localizedDescription)")
             resetErrorMessage = "We couldn't clear watchlist items. Please try again."
         }
+    }
+    
+    /// Collect entry UUIDs for items about to be deleted (before removing them).
+    /// Used to push bulk deletes to Firestore.
+    private func collectEntryIDs(for itemIDs: Set<String>) throws -> [UUID] {
+        var entryIDs: [UUID] = []
+        for itemID in itemIDs {
+            let id = itemID
+            let descriptor = FetchDescriptor<ListEntry>(
+                predicate: #Predicate<ListEntry> { $0.itemID == id }
+            )
+            let entries = try modelContext.fetch(descriptor)
+            entryIDs.append(contentsOf: entries.map(\.id))
+        }
+        return entryIDs
     }
     
     /// Delete all ListEntry records whose itemID is in the given set.
@@ -483,12 +567,16 @@ struct SettingsView: View {
     }
     
     private func performSignOut() {
-        do {
-            syncService.deactivate()
-            try authService.signOut()
-        } catch {
-            logger.error("Sign out failed: \(error.localizedDescription)")
-            accountErrorMessage = "Couldn't sign out. Please try again."
+        // Push any pending local changes to Firestore before signing out
+        Task {
+            await cloudSync.syncIfNeeded(context: modelContext)
+            do {
+                syncService.deactivate()
+                try authService.signOut()
+            } catch {
+                logger.error("Sign out failed: \(error.localizedDescription)")
+                accountErrorMessage = "Couldn't sign out. Please try again."
+            }
         }
     }
     
@@ -498,6 +586,11 @@ struct SettingsView: View {
             do {
                 // Deactivate sync listeners first
                 syncService.deactivate()
+                
+                // Best-effort: push any final local changes, then bulk-delete
+                // cloud sync data before the account is removed.
+                // (After account deletion, security rules block access.)
+                await cloudSync.syncIfNeeded(context: modelContext)
                 
                 // Clean up local followed list data
                 let followedLists = try modelContext.fetch(FetchDescriptor<FollowedList>())
@@ -535,5 +628,8 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environment(AuthService())
+        .environment(FollowedListSyncService())
+        .environment(CloudSyncService())
         .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

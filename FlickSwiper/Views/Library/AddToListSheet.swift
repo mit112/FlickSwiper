@@ -10,6 +10,7 @@ struct AddToListSheet: View {
     @Query private var entries: [ListEntry]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(CloudSyncService.self) private var cloudSync
     
     @State private var showCreateList = false
     @State private var newListName = ""
@@ -31,12 +32,17 @@ struct AddToListSheet: View {
                 Button("Create") {
                     guard !newListName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                     let list = UserList(name: newListName, sortOrder: lists.count)
+                    list.ownerUID = cloudSync.currentUserUID
                     modelContext.insert(list)
                     // Also add the current item to this new list
                     let entry = ListEntry(listID: list.id, itemID: item.uniqueID)
+                    entry.ownerUID = cloudSync.currentUserUID
                     modelContext.insert(entry)
                     do {
                         try modelContext.save()
+                        // Push new list + entry to cloud
+                        cloudSync.pushUserList(list)
+                        cloudSync.pushListEntry(entry)
                         // Sync to Firestore if this list is published
                         let ctx = modelContext
                         Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
@@ -132,17 +138,31 @@ struct AddToListSheet: View {
                 }
             )
             let matches = try modelContext.fetch(descriptor)
+            var newEntry: ListEntry?
             if let existing = matches.first {
+                // Remove from list
+                cloudSync.deleteListEntry(entryID: existing.id)
                 modelContext.delete(existing)
             } else {
+                // Add to list
                 let entry = ListEntry(listID: list.id, itemID: item.uniqueID)
+                entry.ownerUID = cloudSync.currentUserUID
                 modelContext.insert(entry)
+                newEntry = entry
             }
             // Deduplicate in case concurrent sheets created duplicates.
             for duplicate in matches.dropFirst() {
+                cloudSync.deleteListEntry(entryID: duplicate.id)
                 modelContext.delete(duplicate)
             }
+            // Update list lastModified
+            list.lastModified = Date()
             try modelContext.save()
+            // Push changes to cloud
+            if let entry = newEntry {
+                cloudSync.pushListEntry(entry)
+            }
+            cloudSync.pushUserList(list)
             // Sync to Firestore if this list is published
             let ctx = modelContext
             Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }

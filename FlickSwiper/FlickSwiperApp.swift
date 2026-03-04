@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import GoogleSignIn
 import os
 
 /// Structured logger for app lifecycle and database recovery diagnostics.
@@ -18,6 +19,10 @@ struct FlickSwiperApp: App {
     /// Real-time sync service for followed lists.
     /// Activated lazily when user is signed in and viewing Library.
     @State private var followedListSyncService = FollowedListSyncService()
+    
+    /// Cloud sync service for bidirectional backup of library data.
+    /// Injected into the view hierarchy; ContentView handles sync triggers.
+    @State private var cloudSyncService = CloudSyncService()
     
     // MARK: - Database Recovery State
     
@@ -90,6 +95,7 @@ struct FlickSwiperApp: App {
             ContentView(mediaService: mediaService)
                 .environment(authService)
                 .environment(followedListSyncService)
+                .environment(cloudSyncService)
         }
         .modelContainer(sharedModelContainer)
     }

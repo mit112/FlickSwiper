@@ -5,6 +5,7 @@ import os
 /// Main swipe view for discovering movies and TV shows
 struct SwipeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
     @State private var viewModel: SwipeViewModel
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "SwipeView")
     @State private var showingDiscoveryPicker = false
@@ -68,7 +69,7 @@ struct SwipeView: View {
                                 onRate: { stars in
                                     if let item = pendingRatedItem {
                                         do {
-                                            try SwipedItemStore(context: modelContext).setPersonalRating(stars, for: item)
+                                            try SwipedItemStore(context: modelContext, cloudSync: cloudSync).setPersonalRating(stars, for: item)
                                             HapticManager.seen()
                                             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                                 showRatingPrompt = false
@@ -144,6 +145,7 @@ struct SwipeView: View {
                 viewModel.prefetchUpcomingImages()
             }
             .onAppear {
+                viewModel.cloudSync = cloudSync
                 viewModel.syncWithSettings(context: modelContext)
             }
             .overlay {
@@ -437,5 +439,6 @@ struct SwipeView: View {
 
 #Preview {
     SwipeView()
+        .environment(CloudSyncService())
         .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

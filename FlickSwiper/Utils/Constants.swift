@@ -68,7 +68,10 @@ enum Constants {
         nonisolated static func listID(from url: URL) -> String? {
             let path = url.path
             guard path.hasPrefix(listPathPrefix) else { return nil }
-            let docID = String(path.dropFirst(listPathPrefix.count))
+            // Strip trailing slashes, backslashes, and whitespace that can appear
+            // from URL copy-paste or encoding artifacts
+            let raw = String(path.dropFirst(listPathPrefix.count))
+            let docID = raw.trimmingCharacters(in: CharacterSet(charactersIn: "/\\ \t\n"))
             guard !docID.isEmpty else { return nil }
             return docID
         }

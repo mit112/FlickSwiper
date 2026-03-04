@@ -52,6 +52,20 @@ final class SwipedItem: Identifiable {
     /// Which streaming platform the user was browsing when they swiped, e.g. "Netflix"
     var sourcePlatform: String?
     
+    // MARK: - V4 Fields (Cloud Sync)
+    
+    /// When this record was last modified (swipe, rating change, direction change).
+    /// Used by CloudSyncService for incremental sync — only records modified since
+    /// last sync need uploading. Nil for records created before V4 migration;
+    /// sync treats nil as "never synced, needs initial upload."
+    var lastModified: Date?
+    
+    /// Firebase Auth UID of the account that owns this record.
+    /// Nil for records created before first sign-in ("unclaimed").
+    /// On first sign-in, all unclaimed records are stamped with the user's UID.
+    /// On account switch, only records matching the current UID are visible.
+    var ownerUID: String?
+    
     // MARK: - Initialization
     
     init(mediaID: Int, mediaType: MediaItem.MediaType, swipeDirection: SwipeDirection,
@@ -70,6 +84,8 @@ final class SwipedItem: Identifiable {
         self.personalRating = nil
         self.genreIDsString = genreIds.isEmpty ? nil : genreIds.map(String.init).joined(separator: ",")
         self.sourcePlatform = nil
+        self.lastModified = Date()
+        self.ownerUID = nil
     }
     
     convenience init(from mediaItem: MediaItem, direction: SwipeDirection) {

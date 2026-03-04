@@ -179,6 +179,11 @@ final class SwipeViewModel {
     /// Media service instance (injectable for testing)
     private let mediaService: any MediaServiceProtocol
     
+    /// Cloud sync service for pushing mutations to Firestore.
+    /// Set from SwipeView after environment injection (not in init,
+    /// since @State initializes before environment is available).
+    var cloudSync: CloudSyncService?
+    
     /// Minimum items before triggering pre-fetch
     private let prefetchThreshold = 5
     
@@ -358,12 +363,14 @@ final class SwipeViewModel {
             // "seen" is highest rank — always a valid transition
             existing.swipeDirection = SwipedItem.directionSeen
             existing.dateSwiped = Date()
+            existing.lastModified = Date()
             if let sp = sourcePlatform { existing.sourcePlatform = sp }
             swipedItem = existing
         } else {
             previousDirection = nil
             let newItem = SwipedItem(from: item, direction: .seen)
             newItem.sourcePlatform = sourcePlatform
+            newItem.ownerUID = cloudSync?.currentUserUID
             context.insert(newItem)
             swipedItem = newItem
         }
@@ -374,6 +381,7 @@ final class SwipeViewModel {
             pushUndo(UndoEntry(item: item, newDirection: .seen, previousDirection: previousDirection))
             removeFromQueue(item: item)
             HapticManager.seen()
+            cloudSync?.pushSwipedItem(swipedItem)
         } catch {
             logger.error("Error saving swipe right: \(error.localizedDescription)")
         }
@@ -394,6 +402,7 @@ final class SwipeViewModel {
             if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionSkipped) {
                 existing.swipeDirection = SwipedItem.directionSkipped
                 existing.dateSwiped = Date()
+                existing.lastModified = Date()
                 if let sp = sourcePlatform { existing.sourcePlatform = sp }
             }
             // If not allowed (e.g. seen→skipped), leave the record untouched
@@ -401,6 +410,7 @@ final class SwipeViewModel {
             previousDirection = nil
             let swipedItem = SwipedItem(from: item, direction: .skipped)
             swipedItem.sourcePlatform = sourcePlatform
+            swipedItem.ownerUID = cloudSync?.currentUserUID
             context.insert(swipedItem)
         }
         
@@ -410,6 +420,10 @@ final class SwipeViewModel {
             pushUndo(UndoEntry(item: item, newDirection: .skipped, previousDirection: previousDirection))
             removeFromQueue(item: item)
             HapticManager.skip()
+            // Push the record (whether updated or newly created)
+            if let saved = fetchExisting(uniqueID: item.uniqueID, context: context) {
+                cloudSync?.pushSwipedItem(saved)
+            }
         } catch {
             logger.error("Error saving swipe left: \(error.localizedDescription)")
         }
@@ -427,12 +441,14 @@ final class SwipeViewModel {
             if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionWatchlist) {
                 existing.swipeDirection = SwipedItem.directionWatchlist
                 existing.dateSwiped = Date()
+                existing.lastModified = Date()
                 if let sp = sourcePlatform { existing.sourcePlatform = sp }
             }
         } else {
             previousDirection = nil
             let swipedItem = SwipedItem(from: item, direction: .watchlist)
             swipedItem.sourcePlatform = sourcePlatform
+            swipedItem.ownerUID = cloudSync?.currentUserUID
             context.insert(swipedItem)
         }
         
@@ -442,6 +458,9 @@ final class SwipeViewModel {
             pushUndo(UndoEntry(item: item, newDirection: .watchlist, previousDirection: previousDirection))
             removeFromQueue(item: item)
             HapticManager.seen()
+            if let saved = fetchExisting(uniqueID: item.uniqueID, context: context) {
+                cloudSync?.pushSwipedItem(saved)
+            }
         } catch {
             logger.error("Error saving swipe up (watchlist): \(error.localizedDescription)")
         }
@@ -474,6 +493,9 @@ final class SwipeViewModel {
                 // Record pre-existed — restore its original direction
                 if let existing = fetchExisting(uniqueID: itemUniqueID, context: context) {
                     existing.swipeDirection = previousDirection
+                    existing.lastModified = Date()
+                    try context.save()
+                    cloudSync?.pushSwipedItem(existing)
                 }
                 // swipedIDs: item was already tracked before the swipe, leave it
             } else {
@@ -486,9 +508,10 @@ final class SwipeViewModel {
                 for record in records {
                     context.delete(record)
                 }
+                try context.save()
+                cloudSync?.deleteSwipedItem(uniqueID: itemUniqueID)
             }
             
-            try context.save()
             mediaItems.insert(entry.item, at: 0)
             HapticManager.undo()
             

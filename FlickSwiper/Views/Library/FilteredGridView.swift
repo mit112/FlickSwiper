@@ -20,6 +20,7 @@ struct FilteredGridView: View {
     
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "FilteredGrid")
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
     
     @State private var ratingFilter: Int?
     @State private var genreFilter: Int?
@@ -372,7 +373,7 @@ struct FilteredGridView: View {
                 item: item,
                 onMarkAsSeen: {
                     do {
-                        try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+                        try SwipedItemStore(context: modelContext, cloudSync: cloudSync).moveWatchlistToSeen(item)
                         selectedWatchlistItem = nil
                         ratingItem = item
                         ratingPresentationTask?.cancel()
@@ -391,7 +392,7 @@ struct FilteredGridView: View {
                 },
                 onRemove: {
                     do {
-                        try SwipedItemStore(context: modelContext).remove(item)
+                        try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
                         if ratingItem?.uniqueID == item.uniqueID {
                             ratingPresentationTask?.cancel()
                             ratingPresentationTask = nil

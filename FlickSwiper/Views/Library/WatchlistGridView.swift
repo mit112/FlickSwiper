@@ -8,6 +8,7 @@ struct WatchlistGridView: View {
     
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "WatchlistGrid")
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
     
     @State private var searchText = ""
     @State private var genreFilter: Int?
@@ -133,7 +134,7 @@ struct WatchlistGridView: View {
     
     private func markAsSeen(_ item: SwipedItem) {
         do {
-            try SwipedItemStore(context: modelContext).moveWatchlistToSeen(item)
+            try SwipedItemStore(context: modelContext, cloudSync: cloudSync).moveWatchlistToSeen(item)
             ratingItem = item
             ratingPresentationTask?.cancel()
             let uniqueID = item.uniqueID
@@ -152,7 +153,7 @@ struct WatchlistGridView: View {
     
     private func removeFromWatchlist(_ item: SwipedItem) {
         do {
-            try SwipedItemStore(context: modelContext).remove(item)
+            try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
             if ratingItem?.uniqueID == item.uniqueID {
                 ratingPresentationTask?.cancel()
                 ratingPresentationTask = nil

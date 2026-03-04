@@ -13,6 +13,7 @@ struct MyListsSection: View {
     })
     private var libraryItems: [SwipedItem]
     @Environment(\.modelContext) private var modelContext
+    @Environment(CloudSyncService.self) private var cloudSync
     
     @State private var showCreateList = false
     @State private var newListName = ""
@@ -119,9 +120,11 @@ struct MyListsSection: View {
                 Button("Create") {
                     guard !newListName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                     let list = UserList(name: newListName, sortOrder: userLists.count)
+                    list.ownerUID = cloudSync.currentUserUID
                     modelContext.insert(list)
                     do {
                         try modelContext.save()
+                        cloudSync.pushUserList(list)
                         newListName = ""
                     } catch {
                         logger.error("Failed to create user list: \(error.localizedDescription)")
@@ -135,10 +138,13 @@ struct MyListsSection: View {
                 Button("Rename") {
                     guard !renameText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                     renameTarget?.name = renameText
+                    renameTarget?.lastModified = Date()
                     do {
                         try modelContext.save()
-                        // Sync renamed list to Firestore if published
+                        // Push rename to cloud sync
                         if let list = renameTarget {
+                            cloudSync.pushUserList(list)
+                            // Also sync to Firestore published lists if published
                             let ctx = modelContext
                             Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
                         }
@@ -275,12 +281,15 @@ struct MyListsSection: View {
     private func deleteListLocally(_ list: UserList) {
         let listID = list.id
         let entriesToDelete = allEntries.filter { $0.listID == listID }
+        let entryIDs = entriesToDelete.map(\.id)
         for entry in entriesToDelete {
             modelContext.delete(entry)
         }
         modelContext.delete(list)
         do {
             try modelContext.save()
+            // Push delete to Firestore (list + its entries)
+            cloudSync.deleteUserList(listID: listID, entryIDs: entryIDs)
         } catch {
             logger.error("Failed to delete user list: \(error.localizedDescription)")
             persistenceErrorMessage = "We couldn't delete this list. Please try again."

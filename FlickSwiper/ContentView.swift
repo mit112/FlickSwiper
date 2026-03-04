@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseAuth
 
 /// Wrapper to make a String doc ID `Identifiable` for `.sheet(item:)` binding.
 private struct SharedListID: Identifiable {
@@ -10,9 +11,14 @@ private struct SharedListID: Identifiable {
 /// Main content view with tab navigation
 struct ContentView: View {
     private let mediaService: any MediaServiceProtocol
+    @Environment(AuthService.self) private var authService
+    @Environment(CloudSyncService.self) private var cloudSync
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedTab = 0
     @State private var showDatabaseResetAlert = false
     @State private var sharedListDocID: String?
+    /// Tracks the last known UID to detect account switches vs simple sign-in/out.
+    @State private var previousUID: String?
 
     init(mediaService: any MediaServiceProtocol = TMDBService()) {
         self.mediaService = mediaService
@@ -50,6 +56,11 @@ struct ContentView: View {
         }
         .tint(.primary)
         .onOpenURL { url in
+            // 1. Let Google Sign-In handle its OAuth callback URLs first
+            if authService.handleGoogleSignInURL(url) {
+                return
+            }
+            // 2. Otherwise, check for deep links (shared lists, etc.)
             if let destination = DeepLinkHandler.destination(from: url) {
                 switch destination {
                 case .sharedList(let docID):
@@ -69,6 +80,28 @@ struct ContentView: View {
                 showDatabaseResetAlert = true
                 FlickSwiperApp.databaseWasReset = false // consume the flag
             }
+            // Seed previousUID from current auth state so the first onChange
+            // doesn't falsely detect a "sign-in" that already happened.
+            previousUID = authService.currentUser?.uid
+        }
+        // MARK: - Cloud Sync: Auth State → Sync Triggers
+        .onChange(of: authService.currentUser?.uid) { oldUID, newUID in
+            handleAuthChange(oldUID: oldUID, newUID: newUID)
+        }
+        // Periodic background sync every 5 minutes while app is active
+        .task {
+            // Initial sync on launch if already signed in
+            if authService.currentUser != nil {
+                await cloudSync.syncIfNeeded(context: modelContext)
+            }
+            // Then periodic sync
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(300))
+                guard !Task.isCancelled else { break }
+                if authService.currentUser != nil {
+                    await cloudSync.syncIfNeeded(context: modelContext)
+                }
+            }
         }
         .alert("Data Reset Required", isPresented: $showDatabaseResetAlert) {
             Button("OK") { }
@@ -80,9 +113,65 @@ struct ContentView: View {
             }
         }
     }
+    
+    // MARK: - Cloud Sync Helpers
+    
+    private func handleAuthChange(oldUID: String?, newUID: String?) {
+        if let newUID, oldUID == nil {
+            // Sign-in: nil → UID
+            // Check if local data belongs to a different account (sign-out → sign-in
+            // with different provider). If so, treat as account switch to avoid
+            // showing stale data from the previous account.
+            Task {
+                let hasForeignData: Bool
+                do {
+                    let allItems = try modelContext.fetch(FetchDescriptor<SwipedItem>())
+                    hasForeignData = allItems.contains { $0.ownerUID != nil && $0.ownerUID != newUID }
+                } catch {
+                    hasForeignData = false
+                }
+                
+                if hasForeignData {
+                    // Previous account's data is still local — clear it and pull new account
+                    do {
+                        try await cloudSync.handleAccountSwitch(newUID: newUID, context: modelContext)
+                    } catch {
+                        // handleAccountSwitch logs internally
+                    }
+                } else {
+                    // True first sign-in or same account re-sign-in — claim unowned + sync
+                    do {
+                        try cloudSync.claimUnownedRecords(uid: newUID, context: modelContext)
+                    } catch {
+                        // Non-fatal — records will get claimed on next sync
+                    }
+                    await cloudSync.syncIfNeeded(context: modelContext)
+                }
+            }
+            previousUID = newUID
+        } else if newUID == nil, oldUID != nil {
+            // Sign-out: UID → nil
+            previousUID = nil
+        } else if let newUID, let oldUID, newUID != oldUID {
+            // Account switch: UID_A → UID_B
+            Task {
+                do {
+                    try await cloudSync.handleAccountSwitch(newUID: newUID, context: modelContext)
+                } catch {
+                    // handleAccountSwitch logs internally
+                }
+            }
+            previousUID = newUID
+        }
+    }
 }
+
+// MARK: - Preview
 
 #Preview {
     ContentView()
+        .environment(AuthService())
+        .environment(FollowedListSyncService())
+        .environment(CloudSyncService())
         .modelContainer(for: [SwipedItem.self, UserList.self, ListEntry.self, FollowedList.self, FollowedListItem.self], inMemory: true)
 }

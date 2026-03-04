@@ -11,11 +11,23 @@ final class ListEntry {
     var dateAdded: Date
     var sortOrder: Int
     
+    // MARK: - V4 Cloud Sync Fields
+    
+    /// When this record was last modified.
+    /// Nil for records created before V4 migration.
+    var lastModified: Date?
+    
+    /// Firebase Auth UID of the account that owns this entry.
+    /// Nil for records created before first sign-in.
+    var ownerUID: String?
+    
     init(listID: UUID, itemID: String, sortOrder: Int = 0) {
         self.id = UUID()
         self.listID = listID
         self.itemID = itemID
         self.dateAdded = Date()
         self.sortOrder = sortOrder
+        self.lastModified = Date()
+        self.ownerUID = nil
     }
 }

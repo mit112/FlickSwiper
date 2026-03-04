@@ -1,7 +1,7 @@
 import SwiftUI
 import AuthenticationServices
 
-/// Reusable view prompting the user to sign in with Apple.
+/// Reusable view prompting the user to sign in (Apple or Google).
 /// Shown when auth is required for social features (publish, follow).
 ///
 /// Usage:
@@ -45,37 +45,74 @@ struct SignInPromptView: View {
                         .padding(.horizontal, 24)
                 }
                 
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { _ in
-                    // The actual auth flow is handled by AuthService.
-                    // This button is just for visual consistency — we trigger via AuthService.
-                }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
-                .padding(.horizontal, 40)
-                .hidden() // Hidden: we use a custom button that calls AuthService
+                // MARK: - Sign-In Buttons
                 
-                // Actual sign-in button
-                Button {
-                    performSignIn()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isSigningIn {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "apple.logo")
+                VStack(spacing: 12) {
+                    // Apple Sign-In button
+                    Button {
+                        performAppleSignIn()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isSigningIn {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "apple.logo")
+                            }
+                            Text("Sign in with Apple")
+                                .fontWeight(.semibold)
                         }
-                        Text(isSigningIn ? "Signing In..." : "Sign in with Apple")
-                            .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .foregroundStyle(.white)
+                        .background(.black, in: RoundedRectangle(cornerRadius: 12))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .foregroundStyle(.white)
-                    .background(.black, in: RoundedRectangle(cornerRadius: 12))
+                    .disabled(isSigningIn)
+                    
+                    // Divider
+                    HStack {
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundStyle(.quaternary)
+                        Text("or")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundStyle(.quaternary)
+                    }
+                    
+                    // Google Sign-In button
+                    Button {
+                        performGoogleSignIn()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isSigningIn {
+                                ProgressView()
+                                    .tint(.primary)
+                            } else {
+                                // Google "G" branding
+                                Text("G")
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(.blue)
+                            }
+                            Text("Sign in with Google")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .foregroundStyle(.primary)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(.separator), lineWidth: 1)
+                        )
+                    }
+                    .disabled(isSigningIn)
                 }
-                .disabled(isSigningIn)
                 .padding(.horizontal, 40)
                 
                 if let errorMessage {
@@ -99,7 +136,9 @@ struct SignInPromptView: View {
         .presentationDragIndicator(.visible)
     }
     
-    private func performSignIn() {
+    // MARK: - Sign-In Actions
+    
+    private func performAppleSignIn() {
         isSigningIn = true
         errorMessage = nil
         
@@ -109,7 +148,24 @@ struct SignInPromptView: View {
                 dismiss()
                 onSignedIn?()
             } catch let error as AuthService.AuthError where error == .cancelled {
-                // User cancelled — silently dismiss, don't show error
+                isSigningIn = false
+            } catch {
+                errorMessage = error.localizedDescription
+                isSigningIn = false
+            }
+        }
+    }
+    
+    private func performGoogleSignIn() {
+        isSigningIn = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                try await authService.signInWithGoogle()
+                dismiss()
+                onSignedIn?()
+            } catch let error as AuthService.AuthError where error == .cancelled {
                 isSigningIn = false
             } catch {
                 errorMessage = error.localizedDescription
