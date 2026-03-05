@@ -2,20 +2,20 @@
 
 **Feature Branch:** `feature/social-lists`
 **Plan Document:** `docs/SOCIAL_LISTS_PLAN.md`
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-03-04
 
 ---
 
 ## Phase 1: Firebase Foundation
 
 ### Manual Setup (Must be done in Xcode / Firebase Console / Apple Developer)
-- [ ] Create Firebase project at console.firebase.google.com
-- [ ] Register iOS app in Firebase (bundle ID: com.flickswiper.app)
-- [ ] Download `GoogleService-Info.plist` → add to Xcode project (NOT to git)
-- [ ] Enable "Apple" as sign-in provider in Firebase Console → Authentication → Sign-in method
-- [ ] Add `firebase-ios-sdk` SPM dependency in Xcode (File > Add Packages > `https://github.com/firebase/firebase-ios-sdk.git`) — select **FirebaseAuth** and **FirebaseFirestore** only
-- [ ] Add "Sign in with Apple" capability in Xcode (Signing & Capabilities)
-- [ ] Verify app builds with Firebase imports
+- [x] Create Firebase project at console.firebase.google.com
+- [x] Register iOS app in Firebase (bundle ID: com.flickswiper.app)
+- [x] Download `GoogleService-Info.plist` → add to Xcode project (NOT to git)
+- [x] Enable "Apple" as sign-in provider in Firebase Console → Authentication → Sign-in method
+- [x] Add `firebase-ios-sdk` SPM dependency in Xcode (File > Add Packages > `https://github.com/firebase/firebase-ios-sdk.git`) — select **FirebaseAuth** and **FirebaseFirestore** only
+- [x] Add "Sign in with Apple" capability in Xcode (Signing & Capabilities)
+- [x] Verify app builds with Firebase imports
 
 ### Code (Written by Claude)
 - [x] `AuthService.swift` — Sign in with Apple + Firebase Auth wrapper
@@ -30,15 +30,15 @@
 
 ### Verification
 - [x] All unit tests passing (21 tests: 12 DisplayNameValidator + 9 DeepLinkHandler)
-- [ ] Can sign in with Apple → Firebase user created (needs physical device)
-- [ ] User doc created in Firestore `users/{uid}` (needs physical device)
-- [ ] Can publish a list → `publishedLists` doc created with correct data (needs physical device)
-- [ ] Can read a published list back by doc ID (needs physical device)
+- [x] Can sign in with Apple → Firebase user created
+- [x] User doc created in Firestore `users/{uid}`
+- [x] Can publish a list → `publishedLists` doc created with correct data
+- [x] Can read a published list back by doc ID
 
 ---
 
 ## Phase 2: Schema V3 Migration & Local Models
-**Status:** Code complete — needs upgrade path testing
+**Status:** Complete — shipped in v1.3
 
 ### Code
 - [x] `FollowedList.swift` — SwiftData model for followed lists (firestoreDocID as unique key, ownerUID, isActive flag)
@@ -58,7 +58,7 @@
 ---
 
 ## Phase 3: Publish Flow
-**Status:** Code complete — needs Firebase Console setup for runtime testing
+**Status:** Complete — shipped in v1.3
 
 ### New Files
 - [x] `Views/Social/SignInPromptView.swift` — Reusable auth prompt sheet with "Sign in with Apple" button, reason text, error handling
@@ -87,7 +87,7 @@
 ---
 
 ## Phase 4: Universal Links & Deep Link Handling
-**Status:** Code complete — needs GitHub Pages push + Xcode entitlement for runtime testing
+**Status:** Complete — shipped in v1.3
 
 ### New Files (GitHub Pages / docs/)
 - [x] `docs/.well-known/apple-app-site-association` — AASA file with appID `3P89U4WZAB.com.mitsheth.FlickSwiper`, paths: `/FlickSwiper/list/*`
@@ -103,10 +103,10 @@
 - [x] `ContentView.swift` — Added `.onOpenURL` handler that parses URL via DeepLinkHandler, presents SharedListView as sheet. Added `SharedListID` Identifiable wrapper for sheet binding.
 
 ### Manual Steps Required
-- [ ] Push `docs/` changes to GitHub → verify GitHub Pages serves AASA at `https://mit112.github.io/.well-known/apple-app-site-association`
-- [ ] Add Associated Domains entitlement in Xcode: `applinks:mit112.github.io`
-- [ ] Update App Store ID in `docs/list/index.html` and `docs/404.html` once approved
-- [ ] Test on physical device (Universal Links don't work in simulator)
+- [x] Push `docs/` changes to GitHub → GitHub Pages serves AASA
+- [x] Add Associated Domains entitlement in Xcode: `applinks:mit112.github.io`
+- [x] Update App Store ID in `docs/list/index.html` and `docs/404.html`
+- [x] Test on physical device
 
 ### Deep Link Flow
 1. User taps `https://mit112.github.io/FlickSwiper/list/{docID}`
@@ -203,7 +203,7 @@ Fire-and-forget `ListPublisher.syncIfPublished(list:)` call after every successf
 ---
 
 ## Phase 8: Testing, Polish & Submission
-**Status:** Partially started — prep work done
+**Status:** Complete — v1.3 published to App Store (March 2026)
 
 ### Completed Prep
 - [x] Privacy policy updated (`docs/index.html`) — now documents Firebase Auth data collection, published list data, follow relationships, account deletion process, Firebase/Google privacy links
@@ -213,14 +213,14 @@ Fire-and-forget `ListPublisher.syncIfPublished(list:)` call after every successf
 - [x] Push `docs/` to GitHub (AASA file, fallback pages, updated privacy policy)
 - [x] Deploy Firestore security rules to Firebase Console
 - [ ] Create composite index: `follows` collection, `followerUID` ASC + `followedAt` DESC (Firebase may auto-prompt on first query)
-- [ ] Update App Store ID in `docs/list/index.html` and `docs/404.html`
-- [ ] V2 → V3 migration test (CRITICAL)
-- [ ] End-to-end testing of all flows on physical device
-- [ ] Accessibility audit on new views
-- [ ] Regression testing of existing features
-- [ ] Update App Store privacy label
-- [ ] Update App Store screenshots
-- [ ] Submit for review
+- [x] Update App Store ID in `docs/list/index.html` and `docs/404.html`
+- [x] V2 → V3 migration test (CRITICAL)
+- [x] End-to-end testing of all flows on physical device
+- [x] Accessibility audit on new views
+- [x] Regression testing of existing features
+- [x] Update App Store privacy label
+- [x] Update App Store screenshots
+- [x] Submit for review — **approved and published**
 
 ---
 

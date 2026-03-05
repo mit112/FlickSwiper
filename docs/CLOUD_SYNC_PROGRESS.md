@@ -22,6 +22,8 @@ users/{uid}/listEntries/{uuid}
 
 ✅ **BUILD SUCCEEDED** (Feb 20, 2026) — iPhone 17 Pro Max Simulator, Swift 6, Release config. 6 warnings (Sendable captures in CloudSyncService — non-fatal). Zero errors.
 
+✅ **v1.3 PUBLISHED TO APP STORE** (March 2026) — Cloud sync shipped as part of the v1.3 release alongside social lists and UI refresh. Testing checklist below reflects pre-release status; items not checked off were either deferred or tested informally without updating this doc.
+
 ---
 
 ## Completed

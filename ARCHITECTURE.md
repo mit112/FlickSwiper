@@ -17,11 +17,18 @@ FlickSwiper follows the **MVVM** (Model-View-ViewModel) pattern with SwiftUI's `
                     │  SwiftData    │          │  TMDB API     │
                     │  (on-device)  │          │  (remote)     │
                     └──────────────┘          └──────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │  Firebase     │
+                    │  (Auth +      │
+                    │   Firestore)  │
+                    └──────────────┘
 ```
 
 - **Views** own no business logic. They bind to ViewModel state and call ViewModel methods on user interaction.
 - **ViewModels** (`SwipeViewModel`, `SearchViewModel`) manage state, coordinate between the service layer and SwiftData, and run on `@MainActor`.
-- **Services** (`TMDBService`) are `actor`-isolated to ensure thread-safe network access.
+- **Services** (`TMDBService`, `CloudSyncService`, `AuthService`, `ListPublisher`, `FollowedListSyncService`) handle networking, authentication, cloud sync, and social features. `TMDBService` is `actor`-isolated; the Firebase services are `@Observable` + `@MainActor`.
 
 ## Data Flow: Card Swipe
 
@@ -40,14 +47,16 @@ SwipeView triggers fly-off animation (0.2s)
 SwipeViewModel.handleSwipe(direction: .seen, item:)
         │
         ├──▶ Creates SwipedItem with metadata (genre IDs, platform)
+        ├──▶ Sets lastModified + ownerUID (cloud sync fields)
         ├──▶ Inserts into SwiftData ModelContext
+        ├──▶ Pushes to Firestore via CloudSyncService (if signed in)
         ├──▶ Adds to swipedIDs set (prevents rediscovery)
-        ├──▶ Removes card from mediaItems array (next frame via DispatchQueue.main.async)
+        ├──▶ Removes card from mediaItems array
         └──▶ Triggers prefetchIfNeeded() if queue is running low
                 │
                 ▼
         InlineRatingPrompt appears (scale+opacity transition)
-        User rates 1-5 stars → SwipedItem.personalRating updated
+        User rates 1-5 stars → SwipedItem.personalRating updated + pushed to Firestore
 ```
 
 The 0.2s delay between the swipe gesture and the callback is critical — it lets the card visually fly off screen before the array mutation removes it, preventing a jarring visual jump.
@@ -66,9 +75,31 @@ Custom lists use a manual join pattern: `UserList` ↔ `ListEntry` ↔ `SwipedIt
 2. UUID-based joins are simpler to debug and migrate.
 3. Query predicates work more predictably with string-based lookups.
 
-### Lightweight Schema Migration (V1 → V2)
+### Frozen Versioned Schema Definitions (V1 → V4)
 
-All new fields in V2 (`personalRating`, `genreIDsString`, `sourcePlatform`) are `Optional`. This allows SwiftData's built-in lightweight migration to add the columns without custom mapping logic. The `SwipeDirection.watchlist` case required no schema change because direction is stored as a `String`.
+SwiftData hashes the entire model graph to identify on-disk store versions. Early versions referenced the current top-level model types (which included later fields), causing hash mismatches and the "Cannot use staged migration with an unknown model version" error. This triggered the tier-2 recovery path that silently wiped user data.
+
+Fixed by defining frozen model copies nested inside each `VersionedSchema` enum. Each schema version contains exact snapshots of every model as it existed at that version. V4 (current) references the live top-level types. All new fields across versions are `Optional` with defaults, enabling lightweight migration at every step.
+
+### Direction Transition Policy
+
+Direction hierarchy: seen (2) > watchlist (1) > skipped (0). Promotions always allowed; demotions silently ignored. A "seen" item cannot be demoted to "watchlist" or "skipped" by re-encountering it in Discover. Enforced in both `SwipedItemStore` (Search path) and `SwipeViewModel` (Discover path). Undo uses `UndoEntry` with `previousDirection: String?` to restore the correct state without destroying records.
+
+### Cloud Sync: Push-on-Write + Incremental Pull
+
+`CloudSyncService` uses a push-on-write strategy: every local mutation immediately writes through to Firestore. On launch and periodically (every 5 minutes), an incremental pull fetches all records modified since the last sync timestamp. Merge conflicts are resolved by most-recent `lastModified` wins, but direction hierarchy is never violated.
+
+Firestore structure: `users/{uid}/swipedItems/{uniqueID}`, `users/{uid}/userLists/{uuid}`, `users/{uid}/listEntries/{uuid}`. Batch uploads are chunked at 400 operations (under Firestore's 500 limit).
+
+Account switching clears local data and pulls the new account's data. `ownerUID` on every record enables detecting foreign-owned data after provider switches.
+
+### Social Lists: Publish + Follow Architecture
+
+`ListPublisher` serializes `ListEntry` + `SwipedItem` data into a flat Firestore `publishedLists` document with embedded items for read performance. The follow flow creates a Firestore `follows` doc plus local `FollowedList` + `FollowedListItem` SwiftData records.
+
+`FollowedListSyncService` attaches one Firestore `addSnapshotListener` per followed list. On remote changes, it updates local SwiftData cache. When a list owner deactivates a list, followers see a "deactivated" banner and the list freezes.
+
+Universal Links route through GitHub Pages AASA file → `DeepLinkHandler` URL parser → `SharedListView` sheet presentation.
 
 ### Image Caching Strategy
 
@@ -85,6 +116,10 @@ Rather than a third-party image caching library (Kingfisher, SDWebImage), the ap
 | `TMDBService` | `actor` | Thread-safe API calls, rate limit retry state |
 | `SwipeViewModel` | `@MainActor` (implicit via `@Observable`) | UI state must update on main thread |
 | `SearchViewModel` | `@MainActor` | Same — drives UI bindings |
+| `AuthService` | `@Observable` + `@MainActor` | Auth state drives UI, must be on main thread |
+| `CloudSyncService` | `@Observable` + `@MainActor` | Sync state drives UI; SwiftData context access requires main actor |
+| `FollowedListSyncService` | `@Observable` + `@MainActor` | Firestore listeners update SwiftData on main thread |
+| `FirestoreService` | `actor` | Thread-safe Firestore operations |
 | Search debounce | `Task` cancellation | Cancels in-flight search when user types new characters (400ms debounce) |
 | Image prefetch | `Task.detached` | Background downloads don't block UI |
 
@@ -100,6 +135,10 @@ SwiftData queries are scoped carefully to avoid mixing seen and watchlist items:
 ## Testing
 
 The codebase includes `MediaServiceProtocol` with a `MockMediaService` actor for dependency injection. ViewModels accept the protocol, making it possible to test discovery and search logic with controlled data. The mock supports configurable responses, error simulation, and call tracking.
+
+80+ unit tests cover JSON decoding, model conversions, ViewModel logic, direction transition policies, undo behavior, deep link parsing, and display name validation. SwiftData tests use in-memory `ModelContainer`.
+
+Firestore Security Rules are validated by a 51-test penetration testing suite (`security-tests/`) using `@firebase/rules-unit-testing` against the Firebase emulator. Tests cover ownership transfer attacks, size validation, schema validation, and cross-user access attempts.
 
 ## Security: API Key Storage
 
@@ -127,3 +166,11 @@ This pattern must **not** be reused for tokens that can write data, access user 
 - `Secrets.xcconfig.template` documents setup without exposing the real value.
 - `resolveAPIToken()` validates the token at runtime and throws `TMDBError.noAPIKey` if it's missing, preventing silent failures.
 - The token should be rotated before each public release if the repo is public.
+
+## Security: Firebase & Firestore
+
+Firebase project configuration (API keys, project ID) is publicly extractable from the app binary. This is by design — Firebase API keys are not secrets. All authorization is enforced by Firestore Security Rules, which constitute the entire server-side authorization layer in this serverless architecture.
+
+Security rules enforce owner-only access (`request.auth.uid == uid`) on all subcollections under `users/{uid}/`. Published lists have separate rules allowing public reads but owner-only writes. The rules include data validation on creates (required fields, type checks, size limits) and immutable field protection.
+
+The 51-test penetration testing suite validates against ownership transfer attacks, cross-user data access, oversized document injection, schema violation attempts, and other attack vectors. Tests run against the Firebase emulator via `@firebase/rules-unit-testing`.
