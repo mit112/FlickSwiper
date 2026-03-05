@@ -149,6 +149,5 @@
 
 ## Artifacts
 
-- Working plan and pass-by-pass log:
-  - `/Users/mitsheth/.cursor/plans/deep_shakedown_plan_96c8df64.plan.md`
+- Working plan and pass-by-pass log maintained during the shakedown session.
 

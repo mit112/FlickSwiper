@@ -1,7 +1,6 @@
 # FlickSwiper — Social Lists: Implementation Progress
 
 **Feature Branch:** `feature/social-lists`
-**Plan Document:** `docs/SOCIAL_LISTS_PLAN.md`
 **Last Updated:** 2026-03-04
 
 ---
@@ -17,7 +16,7 @@
 - [x] Add "Sign in with Apple" capability in Xcode (Signing & Capabilities)
 - [x] Verify app builds with Firebase imports
 
-### Code (Written by Claude)
+### Code
 - [x] `AuthService.swift` — Sign in with Apple + Firebase Auth wrapper
 - [x] `FirestoreService.swift` — Firestore CRUD for users, publishedLists, follows
 - [x] `DisplayNameValidator.swift` — Offensive term check + format validation

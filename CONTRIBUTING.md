@@ -17,7 +17,7 @@ Thanks for your interest in contributing! Here's how to get started.
 - Follow existing code style and naming conventions
 - Add `///` doc comments to new public types and methods
 - Keep `print()` statements wrapped in `#if DEBUG`
-- Test on iOS 17+ simulator before submitting
+- Test on iOS 26+ simulator before submitting
 - One feature or fix per PR
 - Use intent-focused commit messages (e.g. `Fix: fail CI on xcodebuild errors` instead of generic messages like `update` or `rename`)
 

@@ -4,9 +4,9 @@ All notable changes to FlickSwiper, in reverse chronological order.
 
 ---
 
-## v1.3 — Social Lists, UI Refresh & Schema Migration Fix (February 2026)
+## v1.3 — Social Lists, Cloud Sync, UI Refresh & Schema Migration Fix (March 2026)
 
-Social sharing feature, comprehensive UI/UX refresh, and a critical fix for SwiftData schema migration that was silently wiping user data on upgrades.
+Social sharing feature, cloud backup and sync, comprehensive UI/UX refresh, and a critical fix for SwiftData schema migration that was silently wiping user data on upgrades.
 
 ### UI/UX Refresh
 
@@ -68,10 +68,23 @@ Complete visual overhaul establishing a coherent design language across all scre
 
 - **Schema V2→V3 migration** — Lightweight migration adding three optional fields to `UserList` and two new models (`FollowedList`, `FollowedListItem`). (`SchemaVersions.swift`)
 
+### Cloud Sync & Google Sign-In
+
+- **Bidirectional cloud sync** — `CloudSyncService` implements push-on-write with incremental pull. Every local mutation (swipe, rate, undo, list create/rename/delete, entry add/remove) immediately writes through to Firestore. On launch and every 5 minutes, an incremental pull fetches records modified since the last sync timestamp. Merge conflicts resolved by most-recent `lastModified` wins, with direction hierarchy protection (seen > watchlist > skipped) preventing data demotions. Chunked batch uploads at 400 operations. (`CloudSyncService.swift`)
+
+- **Schema V3→V4 migration** — Added `lastModified: Date?` and `ownerUID: String?` to `SwipedItem`, `UserList`, and `ListEntry` for cloud sync tracking. Frozen V3 schema with all five model copies. (`SchemaVersions.swift`)
+
+- **Google Sign-In** — Added alongside Apple as an auth provider. `AuthService` supports `signInWithGoogle()`, `handleGoogleSignInURL()`, provider-aware `signOut()` and `deleteAccount()`, and `accountExistsWithDifferentProvider` collision handling. (`AuthService.swift`, `SignInPromptView.swift`)
+
+- **Cross-provider account switch** — On sign-in with a different account, syncs current data to cloud, clears local data, then pulls the new account's data. Detects foreign-owned records to distinguish re-sign-in from account switch. (`ContentView.swift`, `CloudSyncService.swift`)
+
+- **Settings Cloud Backup UI** — Sync status display (idle/syncing/synced/failed), "Sync Now" button, and auto-sync footer when signed in. (`SettingsView.swift`)
+
 ### Tests
 
 - **DeepLinkHandler tests** — Covers valid/invalid URL parsing, path extraction, and edge cases. (`DeepLinkHandlerTests.swift`)
 - **DisplayNameValidator tests** — Covers length limits, character restrictions, trimming, and boundary cases. (`DisplayNameValidatorTests.swift`)
+- **Firestore security rules** — 51-test penetration testing suite covering ownership transfer attacks, cross-user access, oversized document injection, schema validation, and size limit enforcement. (`security-tests/`)
 
 ---
 
