@@ -30,36 +30,50 @@
 </head>
 <body>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: February 17, 2026</p>
+    <p class="updated">Last updated: March 4, 2026</p>
 
     <h2>Overview</h2>
-    <p>FlickSwiper is a movie and TV show discovery and tracking app. Your core data — your seen list, watchlist, swipe history, ratings, and custom lists — is stored locally on your device. FlickSwiper also offers optional social features (list sharing and following) that require an account and store limited data on our servers.</p>
+    <p>FlickSwiper is a movie and TV show discovery and tracking app. Your core data — your seen list, watchlist, swipe history, ratings, and custom lists — is stored locally on your device. FlickSwiper also offers optional account features including cloud backup and social list sharing that store data on our servers when you choose to sign in.</p>
 
     <h2>Local Data Storage</h2>
-    <p>All app data is stored on your device using Apple's SwiftData framework. Your seen items, watchlist, ratings, and custom lists exist only on your device. We do not have access to this data. Standard iCloud device backups may include app data per your Apple settings.</p>
+    <p>All app data is stored on your device using Apple's SwiftData framework. Without an account, your seen items, watchlist, ratings, and custom lists exist only on your device. We do not have access to this data. Standard iCloud device backups may include app data per your Apple settings.</p>
 
-    <h2>Account &amp; Social Features (Optional)</h2>
-    <p>FlickSwiper offers optional social features that let you publish lists and follow lists shared by friends. These features require signing in with your Apple ID. You are never required to create an account — all core features work without one.</p>
+    <h2>Account Features (Optional)</h2>
+    <p>FlickSwiper offers optional account features including cloud backup and social list sharing. You can sign in with your Apple ID or Google account. You are never required to create an account — all core features work without one.</p>
     <p>If you choose to sign in, we collect and store the following data using Google Firebase:</p>
     <ul>
-        <li><strong>User ID:</strong> A unique identifier provided by Firebase Authentication, linked to your Apple ID. Used to identify your account.</li>
-        <li><strong>Display name:</strong> Your name as provided by Apple during sign-in, or a name you choose. Shown to other users who view your shared lists (e.g., "Best Horror Movies by Alex").</li>
-        <li><strong>Email address:</strong> If provided by Apple during sign-in (you may choose to hide it). Stored by Firebase Authentication for account recovery purposes. Not displayed to other users.</li>
-        <li><strong>Published list data:</strong> When you publish a list, its name and contents (movie/TV show titles and identifiers) are stored on our servers so others can follow it.</li>
+        <li><strong>User ID:</strong> A unique identifier provided by Firebase Authentication, linked to your Apple ID or Google account. Used to identify your account.</li>
+        <li><strong>Display name:</strong> Your name as provided by Apple or Google during sign-in, or a name you choose. Shown to other users who view your shared lists.</li>
+        <li><strong>Email address:</strong> If provided by your sign-in provider (Apple lets you choose to hide it). Stored by Firebase Authentication for account management. Not displayed to other users.</li>
+    </ul>
+
+    <h2>Cloud Backup</h2>
+    <p>When signed in, your library data is automatically backed up to our servers so it can be restored if you switch devices or reinstall the app. This includes:</p>
+    <ul>
+        <li>Your swiped items (seen, watchlist, and skipped titles) including movie/TV show titles, identifiers, swipe dates, and your personal ratings.</li>
+        <li>Your custom lists (names and which items belong to each list).</li>
+    </ul>
+    <p>This data is stored in your private account space on Google Firebase and is not visible to other users. It is synced automatically while signed in and can be removed by deleting your account.</p>
+
+    <h2>Social Features</h2>
+    <p>You can optionally publish your custom lists so friends can follow them. When you do:</p>
+    <ul>
+        <li><strong>Published list data:</strong> The list name, contents (movie/TV show titles and identifiers), and your display name are stored on our servers so others can view and follow it.</li>
         <li><strong>Follow relationships:</strong> When you follow someone's list, a record of that relationship is stored on our servers.</li>
     </ul>
     <p>We do not collect your location, contacts, photos, browsing history, or any data beyond what is described above.</p>
 
     <h2>How We Use Your Data</h2>
-    <p>Account data is used solely to provide the list sharing and following features. We do not use your data for advertising, marketing, analytics, or any purpose other than the app's functionality. We do not sell, share, or transfer your data to any third party for their own purposes.</p>
+    <p>Account data is used solely to provide the cloud backup and list sharing features. We do not use your data for advertising, marketing, analytics, or any purpose other than the app's functionality. We do not sell, share, or transfer your data to any third party for their own purposes.</p>
 
     <h2>Data Retention &amp; Deletion</h2>
     <p>You can delete your account at any time from Settings within the app. When you delete your account:</p>
     <ul>
         <li>Your user profile is permanently deleted from our servers.</li>
+        <li>Your cloud backup data (swiped items, lists, ratings) is deleted from our servers.</li>
         <li>All lists you published are deactivated (followers will see them as "no longer available").</li>
         <li>All your follow relationships are deleted.</li>
-        <li>Your Firebase Authentication account is permanently deleted.</li>
+        <li>Your Firebase Authentication account is deleted.</li>
         <li>Your local data (seen items, watchlist, ratings, custom lists) is not affected and remains on your device.</li>
     </ul>
     <p>You can also request account deletion by contacting us at the email below.</p>

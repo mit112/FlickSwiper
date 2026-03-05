@@ -246,10 +246,12 @@ struct SeenItemCard: View {
 
 struct SeenItemDetailView: View {
     let item: SwipedItem
+    var onRemove: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     private let logger = Logger(subsystem: "com.flickswiper.app", category: "SeenItemDetail")
     @State private var showAddToList = false
+    @State private var showRemoveConfirmation = false
     @State private var persistenceErrorMessage: String?
     
     var body: some View {
@@ -373,6 +375,24 @@ struct SeenItemDetailView: View {
                     }
                     .padding(.horizontal)
                     
+                    // Remove from Library
+                    if onRemove != nil {
+                        Button(role: .destructive) {
+                            showRemoveConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Remove from Library")
+                            }
+                            .fontWeight(.medium)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(.red)
+                        }
+                        .padding(.horizontal)
+                    }
+                    
                     Spacer(minLength: 40)
                 }
                 .padding(.top)
@@ -390,6 +410,14 @@ struct SeenItemDetailView: View {
                 AddToListSheet(item: item)
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
+            }
+            .alert("Remove from Library?", isPresented: $showRemoveConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Remove", role: .destructive) {
+                    onRemove?()
+                }
+            } message: {
+                Text("\(item.title) will be removed from your library and can appear again in Discover. This cannot be undone.")
             }
             .alert(
                 "Couldn't Save Changes",

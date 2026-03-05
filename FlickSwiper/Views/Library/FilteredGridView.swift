@@ -364,9 +364,17 @@ struct FilteredGridView: View {
             }
         }
         .sheet(item: $selectedItem) { item in
-            SeenItemDetailView(item: item)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+            SeenItemDetailView(item: item) {
+                do {
+                    try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
+                    selectedItem = nil
+                } catch {
+                    logger.error("Failed to remove seen item: \(error.localizedDescription)")
+                    persistenceErrorMessage = "We couldn't remove this item. Please try again."
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedWatchlistItem) { item in
             WatchlistItemDetailView(
@@ -553,23 +561,28 @@ struct FilteredGridView: View {
             Label("View Details", systemImage: "info.circle")
         }
         
+        Button {
+            addToListItem = item
+        } label: {
+            Label("Add to List", systemImage: "text.badge.plus")
+        }
+        
         if let list = sourceList {
-            Button {
-                addToListItem = item
-            } label: {
-                Label("Add to List", systemImage: "text.badge.plus")
-            }
-            
             Button(role: .destructive) {
                 removeFromList(item: item, list: list)
             } label: {
                 Label("Remove from List", systemImage: "minus.circle")
             }
         } else {
-            Button {
-                addToListItem = item
+            Button(role: .destructive) {
+                do {
+                    try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
+                } catch {
+                    logger.error("Failed to delete item: \(error.localizedDescription)")
+                    persistenceErrorMessage = "We couldn't remove this item. Please try again."
+                }
             } label: {
-                Label("Add to List", systemImage: "text.badge.plus")
+                Label("Delete from Library", systemImage: "trash")
             }
         }
     }

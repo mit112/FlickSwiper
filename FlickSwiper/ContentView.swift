@@ -145,6 +145,13 @@ struct ContentView: View {
                     } catch {
                         // Non-fatal — records will get claimed on next sync
                     }
+                    // If local library is empty but we have a stale sync timestamp
+                    // (e.g. re-sign-in after account deletion), force a full pull
+                    // so incremental sync doesn't skip all existing Firestore data.
+                    let localCount = (try? modelContext.fetchCount(FetchDescriptor<SwipedItem>())) ?? 0
+                    if localCount == 0 {
+                        cloudSync.clearSyncTimestamp()
+                    }
                     await cloudSync.syncIfNeeded(context: modelContext)
                 }
             }

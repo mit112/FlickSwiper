@@ -144,6 +144,7 @@ struct SettingsView: View {
                         
                         Button {
                             Task {
+                                cloudSync.clearSyncTimestamp()
                                 await cloudSync.syncIfNeeded(context: modelContext)
                             }
                         } label: {
@@ -584,12 +585,10 @@ struct SettingsView: View {
         isDeletingAccount = true
         Task {
             do {
-                // Deactivate sync listeners first
+                // Deactivate sync listeners
                 syncService.deactivate()
                 
-                // Best-effort: push any final local changes, then bulk-delete
-                // cloud sync data before the account is removed.
-                // (After account deletion, security rules block access.)
+                // Push any final local changes before account removal
                 await cloudSync.syncIfNeeded(context: modelContext)
                 
                 // Clean up local followed list data
@@ -611,14 +610,21 @@ struct SettingsView: View {
                 }
                 try modelContext.save()
                 
-                // Delete account from Firebase (handles Firestore cleanup)
+                // Clear the per-user sync timestamp so a full pull happens if
+                // they sign back in with the same account later.
+                cloudSync.clearSyncTimestamp()
+                
+                // Delete account from Firebase (Firestore cleanup + auth deletion).
+                // If session is stale, this will re-auth automatically then retry.
                 try await authService.deleteAccount()
                 
                 isDeletingAccount = false
             } catch {
                 isDeletingAccount = false
                 logger.error("Account deletion failed: \(error.localizedDescription)")
-                accountErrorMessage = "Couldn't delete your account. You may need to sign in again recently. Please try again."
+                // Delay so the confirmation dialog finishes dismissing before showing error alert.
+                try? await Task.sleep(for: .milliseconds(500))
+                accountErrorMessage = "Couldn't delete your account: \(error.localizedDescription)"
             }
         }
     }

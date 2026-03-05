@@ -77,6 +77,16 @@ final class CloudSyncService {
         UserDefaults.standard.set(date.timeIntervalSince1970, forKey: key)
     }
 
+    /// Clears the stored sync timestamp for the current user.
+    /// Call on account deletion so a full (non-incremental) pull happens
+    /// if they re-sign-in with the same UID later.
+    func clearSyncTimestamp() {
+        guard let key = lastSyncKey else { return }
+        UserDefaults.standard.removeObject(forKey: key)
+        syncState = .idle
+        logger.info("Cleared sync timestamp")
+    }
+
     // MARK: - Firestore Collection Refs
 
     private func swipedItemsRef(uid: String) -> CollectionReference {

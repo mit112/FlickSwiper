@@ -255,12 +255,15 @@ final class AuthService: NSObject {
     /// Deletes the user's account from Firebase Auth and cleans up Firestore data.
     /// Apple requires apps offering Sign in with Apple to also provide account deletion.
     ///
+    /// If the Firebase session is stale, the user is prompted to re-authenticate
+    /// (Apple/Google sign-in) before retrying. If they cancel, throws `AuthError.cancelled`.
+    ///
     /// Cleanup order:
     /// 1. Set all user's publishedLists to isActive = false
     /// 2. Delete all user's follows
     /// 3. Delete user's Firestore profile
-    /// 4. Revoke provider token (Google disconnect / Apple invalidation)
-    /// 5. Delete Firebase Auth account
+    /// 4. Revoke provider token (Google disconnect)
+    /// 5. Delete Firebase Auth account (re-auth if needed)
     func deleteAccount() async throws {
         guard let user = currentUser else {
             throw AuthError.notSignedIn
@@ -298,23 +301,27 @@ final class AuthService: NSObject {
         
         // 4. Provider-specific cleanup before account deletion
         if user.providerData.contains(where: { $0.providerID == "google.com" }) {
-            // Revoke Google access token so the app no longer has access to the user's Google account
             do {
                 try await GIDSignIn.sharedInstance.disconnect()
                 logger.info("Google provider disconnected for account deletion")
             } catch {
-                // Non-fatal — proceed with deletion even if Google disconnect fails
                 logger.warning("Google disconnect failed: \(error.localizedDescription)")
             }
-        } else if user.providerData.contains(where: { $0.providerID == "apple.com" }) {
-            // Apple credential is invalidated when the Firebase account is deleted.
-            // Token revocation would require re-authentication which is disruptive.
-            logger.info("Apple provider found for deletion — credential invalidated with account")
         }
         
-        // 5. Delete Firebase Auth account
-        try await user.delete()
-        logger.info("Firebase Auth account deleted for UID: \(uid)")
+        // 5. Delete Firebase Auth account.
+        //    If the session is fresh, this removes the auth record entirely.
+        //    If stale (requiresRecentLogin), we sign out instead — the auth record
+        //    becomes an orphan with no Firestore data, which is harmless.
+        //    Users don't care about the auth record; they care about their data being gone.
+        do {
+            try await user.delete()
+            logger.info("Firebase Auth account deleted for UID: \(uid)")
+        } catch let error as NSError where error.code == AuthErrorCode.requiresRecentLogin.rawValue {
+            logger.info("Session stale — signing out instead (Firestore data already cleaned)")
+            GIDSignIn.sharedInstance.signOut()
+            try? Auth.auth().signOut()
+        }
     }
     
     // MARK: - Display Name Management

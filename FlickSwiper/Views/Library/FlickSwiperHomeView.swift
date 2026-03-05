@@ -56,9 +56,17 @@ struct FlickSwiperHomeView: View {
                 FollowedListDetailView(followedList: followedList)
             }
             .sheet(item: $selectedItem) { item in
-                SeenItemDetailView(item: item)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                SeenItemDetailView(item: item) {
+                    do {
+                        try SwipedItemStore(context: modelContext, cloudSync: cloudSync).remove(item)
+                        selectedItem = nil
+                    } catch {
+                        logger.error("Failed to remove seen item: \(error.localizedDescription)")
+                        persistenceErrorMessage = "We couldn't remove this item. Please try again."
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedWatchlistItem) { item in
                 WatchlistItemDetailView(
