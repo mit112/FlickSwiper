@@ -2,6 +2,7 @@
 
 **A gesture-driven iOS app for discovering, tracking, and organizing movies & TV shows — with social list sharing and cloud sync.**
 
+[![App Store](https://img.shields.io/badge/App_Store-Download-blue.svg)](https://apps.apple.com/us/app/flickswiper/id6758966666)
 [![Build & Test](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml/badge.svg)](https://github.com/mit112/FlickSwiper/actions/workflows/build.yml)
 [![Swift](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/SwiftUI-blue.svg)](https://developer.apple.com/swiftui/)
@@ -38,15 +39,15 @@ I wanted a quick, tactile way to log what I've watched without the overhead of f
 
 **Watchlist → Seen** — When you finally watch something, tap "I've Watched This" to move it from watchlist to seen with a rating prompt.
 
-**Social Lists** — Sign in with Apple or Google to publish custom lists as Universal Links. Share via `flickswiper.app/list/{id}`. Friends can follow your lists with real-time sync — when you update a published list, followers see the changes automatically via Firestore snapshot listeners.
+**Social Lists** — Sign in with Apple or Google to publish custom lists as Universal Links. Share via `mit112.github.io/FlickSwiper/list/{id}`. Friends can follow your lists with real-time sync — when you update a published list, followers see the changes automatically via Firestore snapshot listeners.
 
 **Cloud Backup** — Optional bidirectional sync backs up your entire library (swipes, ratings, lists, list entries) to Firebase. Push-on-write for instant saves, incremental pull on launch. Merge conflicts resolved by timestamp with direction hierarchy protection (seen > watchlist > skipped). Supports cross-provider account switching with full data isolation.
 
 ## Technical Highlights
 
 - **SwiftData with Versioned Schema Migration** — Four-version migration chain (V1→V2→V3→V4) with frozen versioned schema definitions to prevent hash mismatches. UUID-based join models (`UserList` ↔ `ListEntry` ↔ `SwipedItem`) avoid SwiftData relationship pitfalls.
-- **Firebase Integration** — Auth (Apple + Google Sign-In with provider-aware collision handling), Firestore (cloud sync + social list publishing), Security Rules with penetration-tested authorization layer.
-- **Bidirectional Cloud Sync** — Push-on-write with incremental pull. Timestamp-based merge with direction hierarchy protection. Chunked batch uploads (400 ops). Cross-provider account switch with data isolation.
+- **Firebase Integration** — Auth (Apple + Google Sign-In with provider-aware collision handling), Firestore (cloud sync + social list publishing), Security Rules with penetration-tested authorization layer (78 tests).
+- **Bidirectional Cloud Sync** — Push-on-write with incremental pull. Timestamp-based merge with direction hierarchy protection. Chunked batch uploads (400 ops). Re-entrancy guard prevents overlapping sync operations. Cross-provider account switch with data isolation.
 - **Actor-Isolated Networking** — `TMDBService` is an `actor`, ensuring thread-safe API access. Handles 429 rate limiting with automatic retry using the `Retry-After` header.
 - **Gesture-Driven Animation Orchestration** — Card swipe animations in three directions with precise timing between fly-off animation (0.2s delay), array mutation, and rating prompt presentation to prevent visual artifacts.
 - **Real-Time Social Sync** — Per-list Firestore snapshot listeners for followed lists. Activate/deactivate lifecycle tied to auth state.
@@ -65,7 +66,7 @@ For a deeper look at architecture decisions, see [ARCHITECTURE.md](ARCHITECTURE.
 - **Cloud layer**: Firebase Auth (Apple + Google) → `CloudSyncService` (push-on-write + incremental pull) → Firestore subcollections under `users/{uid}/`.
 - **Social layer**: `ListPublisher` (publish/unpublish lifecycle) + `FollowedListSyncService` (per-list Firestore snapshot listeners) + Universal Links via GitHub Pages AASA.
 - **Networking**: `TMDBService` actor handles API requests, retry-on-429 behavior, and model mapping to `MediaItem`.
-- **Testing strategy**: XCTest coverage for models, decoding, service/view-model behavior, and persistence mutation paths via in-memory SwiftData. Firestore security rules validated by 51-test penetration testing suite.
+- **Testing strategy**: XCTest coverage (128 tests) for models, decoding, service/view-model behavior, and persistence mutation paths via in-memory SwiftData. Firestore security rules validated by 78-test penetration testing suite.
 
 ## Project Structure
 
@@ -98,8 +99,9 @@ FlickSwiper/
 ├── Services/
 │   ├── TMDBService.swift             # Actor-based TMDB API client
 │   ├── MediaServiceProtocol.swift    # Protocol + mock for testing
-│   ├── AuthService.swift             # Firebase Auth — Apple + Google Sign-In, account lifecycle
+│   ├── AuthService.swift             # Firebase Auth — Apple + Google Sign-In, account lifecycle + deletion
 │   ├── CloudSyncService.swift        # Bidirectional Firestore sync, merge, batch upload
+│   ├── SwipedItemStore.swift         # Centralized write ops with direction policy + cloud sync hooks
 │   ├── FirestoreService.swift        # Firestore CRUD for social lists
 │   ├── ListPublisher.swift           # Publish/unpublish/sync lifecycle for shared lists
 │   └── FollowedListSyncService.swift # Real-time snapshot listeners for followed lists
@@ -158,7 +160,7 @@ FlickSwiper/
 | Networking | URLSession + async/await, actor isolation |
 | API | TMDB v3 (movies, TV, search, streaming providers) |
 | Architecture | MVVM with @Observable |
-| Security | Firestore Security Rules, penetration tested (51 tests) |
+| Security | Firestore Security Rules, penetration tested (78 tests) |
 | Minimum Target | iOS 26.0 |
 
 ## Privacy
