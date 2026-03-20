@@ -4,6 +4,48 @@ All notable changes to FlickSwiper, in reverse chronological order.
 
 ---
 
+## v1.3.1 — Post-Ship Security & Correctness Audit (March 2026)
+
+Comprehensive 4-track audit (logic, security, code quality, Firestore rules) with 28 fixes across 15 files.
+
+### Security (HIGH)
+
+- **Account deletion now GDPR/Apple-compliant** — Deletes all three private Firestore subcollections (`swipedItems`, `userLists`, `listEntries`) on account deletion. Previously orphaned user data persisted indefinitely.
+- **Re-authentication on stale session** — `deleteAccount()` now prompts Apple/Google re-auth instead of silently falling back to sign-out, which left the Firebase Auth record alive.
+- **Deletion order reversed** — Firebase delete runs first; local data cleared only on success. Prevents data loss if the remote call fails.
+- **Deep link doc ID validation** — Rejects path traversal, slashes, and oversized IDs (alphanumeric + hyphens only, max 128 chars).
+- **List name length capped** — Client-side 200-char limit on create/rename, matching Firestore rules.
+
+### Logic & Correctness (HIGH)
+
+- **`deleteUserList` batch chunking** — Lists with 500+ entries no longer exceed Firestore's 500-op batch limit (was causing silent "un-deletion" on next sync).
+- **Sync re-entrancy guard** — `syncIfNeeded` now rejects overlapping calls, preventing concurrent SwiftData writes from interleaving.
+- **Undo stack cleared on all filter changes** — `yearFilterMin`, `yearFilterMax`, and `selectedGenre` now clear the undo stack (previously only `selectedMethod` and `contentTypeFilter` did).
+- **`fetchExisting` throws instead of `try?`** — Prevents silent duplicate `SwipedItem` creation on SwiftData errors.
+
+### Firestore Rules Hardening
+
+- `isActive` type validated as `bool` on update (prevents deactivation bypass via `isActive: 42`)
+- `description` validated (string, <= 2000 chars) on create and update
+- `ownerDisplayName` size-capped (<=200) on create, validated on update
+- `itemCount` must match `items.size()` when present (prevents count spoofing)
+- `followedAt` must be a `timestamp` on follow create
+
+### Code Quality
+
+- **FollowedListSyncService** — Replaced 3 silent `try?` calls with proper `do/catch`; added `isActive` guard against post-deactivation writes.
+- **ListPublisher sync** — All 7 `try? syncIfPublished` call sites now log errors via OSLog.
+- **Force unwraps eliminated** — TMDBService year params use nil-coalescing; SmartCollectionsSection uses safe dictionary access.
+- **ContentView fetchCount** — Error sentinel prevents spurious `clearSyncTimestamp`.
+- **SwipeViewModel** — No-op Firestore push on blocked demotion eliminated.
+- **FlickSwiperApp** — Static vars marked `nonisolated(unsafe)` for Swift 6.
+
+### Testing
+
+- **27 new Firestore security test vectors** (MT-01 through MT-12) covering `isActive` type bypass, description/ownerDisplayName injection, itemCount consistency, followedAt type, document size risks, and profile field allowlist gaps.
+
+---
+
 ## v1.3 — Social Lists, Cloud Sync, UI Refresh & Schema Migration Fix (March 2026)
 
 Social sharing feature, cloud backup and sync, comprehensive UI/UX refresh, and a critical fix for SwiftData schema migration that was silently wiping user data on upgrades.

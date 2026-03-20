@@ -136,9 +136,9 @@ SwiftData queries are scoped carefully to avoid mixing seen and watchlist items:
 
 The codebase includes `MediaServiceProtocol` with a `MockMediaService` actor for dependency injection. ViewModels accept the protocol, making it possible to test discovery and search logic with controlled data. The mock supports configurable responses, error simulation, and call tracking.
 
-80+ unit tests cover JSON decoding, model conversions, ViewModel logic, direction transition policies, undo behavior, deep link parsing, and display name validation. SwiftData tests use in-memory `ModelContainer`.
+128 unit tests cover JSON decoding, model conversions, ViewModel logic, direction transition policies, undo behavior, deep link parsing, and display name validation. SwiftData tests use in-memory `ModelContainer`.
 
-Firestore Security Rules are validated by a 51-test penetration testing suite (`security-tests/`) using `@firebase/rules-unit-testing` against the Firebase emulator. Tests cover ownership transfer attacks, size validation, schema validation, and cross-user access attempts.
+Firestore Security Rules are validated by a 78-test penetration testing suite (`security-tests/`) using `@firebase/rules-unit-testing` against the Firebase emulator. Tests cover ownership transfer attacks, size validation, schema validation, cross-user access attempts, type confusion attacks on `isActive`/`followedAt`/`description`/`ownerDisplayName`, `itemCount` consistency, and document size risks.
 
 ## Security: API Key Storage
 
@@ -171,6 +171,8 @@ This pattern must **not** be reused for tokens that can write data, access user 
 
 Firebase project configuration (API keys, project ID) is publicly extractable from the app binary. This is by design — Firebase API keys are not secrets. All authorization is enforced by Firestore Security Rules, which constitute the entire server-side authorization layer in this serverless architecture.
 
-Security rules enforce owner-only access (`request.auth.uid == uid`) on all subcollections under `users/{uid}/`. Published lists have separate rules allowing public reads but owner-only writes. The rules include data validation on creates (required fields, type checks, size limits) and immutable field protection.
+Security rules enforce owner-only access (`request.auth.uid == uid`) on all subcollections under `users/{uid}/`. Published lists have separate rules allowing public reads but owner-only writes. The rules include data validation on creates and updates: required fields, type checks, size limits (`name <= 200`, `items <= 500`, `description <= 2000`, `ownerDisplayName <= 200`), `isActive` bool enforcement, `itemCount` consistency with `items.size()`, `followedAt` timestamp enforcement, and immutable `ownerUID` protection.
 
-The 51-test penetration testing suite validates against ownership transfer attacks, cross-user data access, oversized document injection, schema violation attempts, and other attack vectors. Tests run against the Firebase emulator via `@firebase/rules-unit-testing`.
+Account deletion performs complete data erasure: Firebase Auth record, user profile document, all three private subcollections (`swipedItems`, `userLists`, `listEntries`), published list deactivation, and follow cleanup. Re-authentication is prompted on stale sessions instead of falling back to sign-out.
+
+The 78-test penetration testing suite validates against ownership transfer attacks, cross-user data access, oversized document injection, schema violation attempts, type confusion attacks, and other attack vectors. Tests run against the Firebase emulator via `@firebase/rules-unit-testing`.

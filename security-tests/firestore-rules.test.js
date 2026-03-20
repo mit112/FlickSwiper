@@ -710,6 +710,306 @@ describe("Data Integrity — Subcollection Schema", () => {
 });
 
 // ════════════════════════════════════════════════════════════
+//  SECTION 8 — Post-Ship Audit: New Test Vectors (MT-01–MT-12)
+//  Added after v1.3 security audit to cover gaps identified
+//  in the original 51-test suite.
+// ════════════════════════════════════════════════════════════
+
+describe("Published Lists — isActive type validation (MT-01)", () => {
+  const validList = {
+    ownerUID: "alice",
+    name: "Test List",
+    items: [{ tmdbID: 1, title: "Movie" }],
+    ownerDisplayName: "Alice",
+    isActive: true,
+  };
+
+  test("✅ rejects update with isActive as integer", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({ isActive: 42 })
+    );
+  });
+
+  test("✅ rejects update with isActive as string", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({ isActive: "yes" })
+    );
+  });
+
+  test("✅ rejects update with isActive as null", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({ isActive: null })
+    );
+  });
+
+  test("✅ accepts update with isActive as boolean", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/list1").update({ isActive: false })
+    );
+  });
+});
+
+describe("Published Lists — description validation (MT-02)", () => {
+  const validList = {
+    ownerUID: "alice",
+    name: "Test List",
+    items: [],
+    ownerDisplayName: "Alice",
+    isActive: true,
+  };
+
+  test("✅ rejects create with oversized description", async () => {
+    await assertFails(
+      authed("alice").doc("publishedLists/bigdesc").set({
+        ...validList,
+        description: "A".repeat(3000), // exceeds 2000 limit
+      })
+    );
+  });
+
+  test("✅ rejects create with non-string description", async () => {
+    await assertFails(
+      authed("alice").doc("publishedLists/baddesc").set({
+        ...validList,
+        description: 12345,
+      })
+    );
+  });
+
+  test("✅ accepts create with valid description", async () => {
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/gooddesc").set({
+        ...validList,
+        description: "A great list of movies",
+      })
+    );
+  });
+
+  test("✅ accepts create without description field", async () => {
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/nodesc").set(validList)
+    );
+  });
+
+  test("✅ rejects update with oversized description", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({
+        description: "X".repeat(3000),
+      })
+    );
+  });
+});
+
+describe("Published Lists — ownerDisplayName size (MT-03, MT-04)", () => {
+  const validList = {
+    ownerUID: "alice",
+    name: "Test List",
+    items: [],
+    ownerDisplayName: "Alice",
+    isActive: true,
+  };
+
+  test("✅ rejects create with oversized ownerDisplayName", async () => {
+    await assertFails(
+      authed("alice").doc("publishedLists/bigname").set({
+        ...validList,
+        ownerDisplayName: "A".repeat(300), // exceeds 200 limit
+      })
+    );
+  });
+
+  test("✅ rejects update with oversized ownerDisplayName", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({
+        ownerDisplayName: "X".repeat(300),
+      })
+    );
+  });
+
+  test("✅ rejects update with non-string ownerDisplayName", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({
+        ownerDisplayName: 42,
+      })
+    );
+  });
+
+  test("✅ accepts update with valid ownerDisplayName", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/list1").update({
+        ownerDisplayName: "Alice Updated",
+      })
+    );
+  });
+});
+
+describe("Published Lists — itemCount consistency (MT-05)", () => {
+  const validList = {
+    ownerUID: "alice",
+    name: "Test List",
+    items: [{ tmdbID: 1, title: "Movie" }],
+    ownerDisplayName: "Alice",
+    isActive: true,
+  };
+
+  test("✅ rejects create with mismatched itemCount", async () => {
+    await assertFails(
+      authed("alice").doc("publishedLists/mismatch").set({
+        ...validList,
+        itemCount: 9999, // items has 1 element
+      })
+    );
+  });
+
+  test("✅ accepts create with correct itemCount", async () => {
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/correct").set({
+        ...validList,
+        itemCount: 1, // matches items.length
+      })
+    );
+  });
+
+  test("✅ accepts create without itemCount field", async () => {
+    // itemCount is optional — only validated if present
+    await assertSucceeds(
+      authed("alice").doc("publishedLists/nocount").set(validList)
+    );
+  });
+
+  test("✅ rejects update with mismatched itemCount", async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set(validList));
+
+    await assertFails(
+      authed("alice").doc("publishedLists/list1").update({
+        items: [{ tmdbID: 1, title: "A" }, { tmdbID: 2, title: "B" }],
+        itemCount: 999,
+      })
+    );
+  });
+});
+
+describe("Follows — followedAt type validation (MT-06)", () => {
+  test("✅ rejects follow with string followedAt", async () => {
+    await assertFails(
+      authed("alice").collection("follows").add({
+        followerUID: "alice",
+        listID: "list1",
+        followedAt: "2099-01-01", // string, not timestamp
+      })
+    );
+  });
+
+  test("✅ rejects follow with integer followedAt", async () => {
+    await assertFails(
+      authed("alice").collection("follows").add({
+        followerUID: "alice",
+        listID: "list1",
+        followedAt: 9999999999, // number, not timestamp
+      })
+    );
+  });
+
+  test("✅ rejects follow without followedAt", async () => {
+    await assertFails(
+      authed("alice").collection("follows").add({
+        followerUID: "alice",
+        listID: "list1",
+        // followedAt missing
+      })
+    );
+  });
+});
+
+describe("Subcollection — Document size (MT-08)", () => {
+  test("⚠️ RISK: owner can write large documents to their subcollections", async () => {
+    // Rules have no document size check — only Firestore's 1MB hard limit applies
+    const largeDoc = {
+      mediaID: 123,
+      direction: "seen",
+      padding: "X".repeat(50000), // 50KB — well within 1MB but larger than any real doc
+    };
+
+    const result = authed("alice")
+      .doc("users/alice/swipedItems/large_doc")
+      .set(largeDoc);
+
+    try {
+      await assertSucceeds(result);
+      console.log(
+        "\n  ⚠️  50KB document accepted in swipedItems. No rule-level size cap."
+      );
+      console.log(
+        "     Mitigation: Add request.resource.data.size() < 10240 to subcollection rules."
+      );
+    } catch {
+      console.log("\n  ✅ Document size is limited by rules.");
+    }
+  });
+});
+
+describe("User Profile — Extra fields (MT-10)", () => {
+  test("⚠️ RISK: owner can write arbitrary fields to their profile", async () => {
+    const result = authed("alice")
+      .doc("users/alice")
+      .set({
+        displayName: "Alice",
+        displayNameLowercase: "alice",
+        isAdmin: true, // should not exist
+        secretData: "sensitive",
+      });
+
+    try {
+      await assertSucceeds(result);
+      console.log(
+        "\n  ⚠️  Arbitrary fields accepted in user profile (no field allowlist)."
+      );
+    } catch {
+      console.log("\n  ✅ Profile enforces field allowlist.");
+    }
+  });
+});
+
+describe("displayNameLowercase consistency (MT-11)", () => {
+  test("⚠️ RISK: displayNameLowercase can differ from displayName", async () => {
+    const result = authed("alice")
+      .doc("users/alice")
+      .set({
+        displayName: "ALICE",
+        displayNameLowercase: "completely_wrong", // inconsistent
+      });
+
+    try {
+      await assertSucceeds(result);
+      console.log(
+        "\n  ⚠️  displayNameLowercase not enforced to match displayName.lower()."
+      );
+      console.log(
+        "     Mitigation: Client-side enforcement only. Rules cannot compute .lower()."
+      );
+    } catch {
+      console.log("\n  ✅ displayNameLowercase consistency enforced.");
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════
 //  SUMMARY — Print results overview
 // ════════════════════════════════════════════════════════════
 
@@ -722,18 +1022,25 @@ afterAll(() => {
   console.log("  ✅ FIXED VULNERABILITIES (verified by tests):");
   console.log("     VULN-FS-003: name.size() <= 200, items.size() <= 500 enforced");
   console.log("     VULN-FS-004: ownerUID immutable on update");
+  console.log("     MT-01: isActive type validated on update (bool only)");
+  console.log("     MT-02: description validated (string, <= 2000 chars)");
+  console.log("     MT-03/04: ownerDisplayName size-capped on create+update");
+  console.log("     MT-05: itemCount must match items.size() when present");
+  console.log("     MT-06: followedAt must be a timestamp");
   console.log("");
   console.log("  ⚠️  ACCEPTED RISKS (document and monitor):");
-  console.log("     - Any authed user can read all user profiles");
+  console.log("     - Any authed user can read all user profiles (MT-10)");
   console.log("     - Any authed user can enumerate all follow records");
   console.log("     - No server-side rate limiting on writes");
   console.log("     - Subcollection writes have no schema validation");
+  console.log("     - Subcollection docs have no size cap (MT-08)");
+  console.log("     - displayNameLowercase not enforced (MT-11)");
+  console.log("     - User profile accepts arbitrary fields (MT-10)");
   console.log("");
-  console.log("  📋 MANUAL CHECKS STILL NEEDED:");
-  console.log("     - Firebase Console: email enumeration protection");
-  console.log("     - Firebase Console: only Apple + Google providers enabled");
-  console.log("     - Check /users/{uid} documents for PII (email field?)");
-  console.log("     - Deep link URL sanitization in DeepLinkHandler.swift");
-  console.log("     - Account deletion Firestore cleanup");
+  console.log("  ✅ FIXED IN CODE (not rules):");
+  console.log("     - Account deletion now deletes all subcollections (GDPR)");
+  console.log("     - Re-auth on stale session instead of sign-out fallback");
+  console.log("     - Deep link doc ID validated (alphanumeric + hyphens only)");
+  console.log("     - List names capped at 200 chars client-side");
   console.log("═══════════════════════════════════════════════════");
 });

@@ -118,8 +118,10 @@ struct MyListsSection: View {
             .alert("New List", isPresented: $showCreateList) {
                 TextField("List name", text: $newListName)
                 Button("Create") {
-                    guard !newListName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    let list = UserList(name: newListName, sortOrder: userLists.count)
+                    let trimmed = newListName.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    let validName = String(trimmed.prefix(200)) // Match Firestore rule limit
+                    let list = UserList(name: validName, sortOrder: userLists.count)
                     list.ownerUID = cloudSync.currentUserUID
                     modelContext.insert(list)
                     do {
@@ -136,8 +138,9 @@ struct MyListsSection: View {
             .alert("Rename List", isPresented: $showRenameAlert) {
                 TextField("List name", text: $renameText)
                 Button("Rename") {
-                    guard !renameText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    renameTarget?.name = renameText
+                    let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    renameTarget?.name = String(trimmed.prefix(200)) // Match Firestore rule limit
                     renameTarget?.lastModified = Date()
                     do {
                         try modelContext.save()
@@ -146,7 +149,7 @@ struct MyListsSection: View {
                             cloudSync.pushUserList(list)
                             // Also sync to Firestore published lists if published
                             let ctx = modelContext
-                            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+                            Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
                         }
                         renameTarget = nil
                     } catch {

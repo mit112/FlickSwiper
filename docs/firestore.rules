@@ -70,13 +70,23 @@ service cloud.firestore {
                     && request.resource.data.items is list
                     && request.resource.data.items.size() <= 500
                     && request.resource.data.ownerDisplayName is string
-                    && request.resource.data.isActive is bool;
+                    && request.resource.data.ownerDisplayName.size() <= 200
+                    && request.resource.data.isActive is bool
+                    && (!('description' in request.resource.data.keys()) || (request.resource.data.description is string && request.resource.data.description.size() <= 2000))
+                    && (!('itemCount' in request.resource.data.keys()) || request.resource.data.itemCount == request.resource.data.items.size());
 
       allow update: if request.auth != null
                     && resource.data.ownerUID == request.auth.uid
                     && request.resource.data.ownerUID == resource.data.ownerUID
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
                     && request.resource.data.name.size() <= 200
-                    && request.resource.data.items.size() <= 500;
+                    && request.resource.data.items is list
+                    && request.resource.data.items.size() <= 500
+                    && request.resource.data.isActive is bool
+                    && (!('ownerDisplayName' in request.resource.data.keys()) || (request.resource.data.ownerDisplayName is string && request.resource.data.ownerDisplayName.size() <= 200))
+                    && (!('description' in request.resource.data.keys()) || (request.resource.data.description is string && request.resource.data.description.size() <= 2000))
+                    && (!('itemCount' in request.resource.data.keys()) || request.resource.data.itemCount == request.resource.data.items.size());
 
       allow delete: if request.auth != null
                     && resource.data.ownerUID == request.auth.uid;
@@ -94,7 +104,8 @@ service cloud.firestore {
 
       allow create: if request.auth != null
                     && request.resource.data.followerUID == request.auth.uid
-                    && request.resource.data.listID is string;
+                    && request.resource.data.listID is string
+                    && request.resource.data.followedAt is timestamp;
 
       allow delete: if request.auth != null
                     && resource.data.followerUID == request.auth.uid;

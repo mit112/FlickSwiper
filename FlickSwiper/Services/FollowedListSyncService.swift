@@ -106,60 +106,63 @@ final class FollowedListSyncService {
     }
     
     private func handleSnapshotUpdate(docID: String, snapshot: FirestoreService.PublishedListSnapshot?) {
+        guard isActive else {
+            logger.info("Ignoring snapshot update for \(docID) — service deactivated")
+            return
+        }
         guard let context = modelContext else { return }
-        
-        // Find the local FollowedList record
-        let id = docID
-        let descriptor = FetchDescriptor<FollowedList>(
-            predicate: #Predicate<FollowedList> { $0.firestoreDocID == id }
-        )
-        guard let localList = try? context.fetch(descriptor).first else {
-            logger.warning("Received update for \(docID) but no local FollowedList found")
-            return
-        }
-        
-        guard let snapshot else {
-            // Document was deleted or error occurred
-            localList.isActive = false
-            try? context.save()
-            logger.info("List \(docID) marked inactive (snapshot nil)")
-            return
-        }
-        
-        // Update metadata
-        localList.name = snapshot.name
-        localList.ownerDisplayName = snapshot.ownerDisplayName
-        localList.itemCount = snapshot.itemCount
-        localList.isActive = snapshot.isActive
-        localList.lastFetchedAt = Date()
-        
-        // Replace items: delete old, insert new
-        let itemDescriptor = FetchDescriptor<FollowedListItem>(
-            predicate: #Predicate<FollowedListItem> { $0.followedListID == id }
-        )
-        if let existingItems = try? context.fetch(itemDescriptor) {
+
+        do {
+            // Find the local FollowedList record
+            let id = docID
+            let descriptor = FetchDescriptor<FollowedList>(
+                predicate: #Predicate<FollowedList> { $0.firestoreDocID == id }
+            )
+            guard let localList = try context.fetch(descriptor).first else {
+                logger.warning("Received update for \(docID) but no local FollowedList found")
+                return
+            }
+
+            guard let snapshot else {
+                // Document was deleted or error occurred
+                localList.isActive = false
+                try context.save()
+                logger.info("List \(docID) marked inactive (snapshot nil)")
+                return
+            }
+
+            // Update metadata
+            localList.name = snapshot.name
+            localList.ownerDisplayName = snapshot.ownerDisplayName
+            localList.itemCount = snapshot.itemCount
+            localList.isActive = snapshot.isActive
+            localList.lastFetchedAt = Date()
+
+            // Replace items: delete old, insert new
+            let itemDescriptor = FetchDescriptor<FollowedListItem>(
+                predicate: #Predicate<FollowedListItem> { $0.followedListID == id }
+            )
+            let existingItems = try context.fetch(itemDescriptor)
             for item in existingItems {
                 context.delete(item)
             }
-        }
-        
-        for (index, item) in snapshot.items.enumerated() {
-            let newItem = FollowedListItem(
-                followedListID: docID,
-                tmdbID: item.tmdbID,
-                mediaType: item.mediaType,
-                title: item.title,
-                posterPath: item.posterPath,
-                sortOrder: index
-            )
-            context.insert(newItem)
-        }
-        
-        do {
+
+            for (index, item) in snapshot.items.enumerated() {
+                let newItem = FollowedListItem(
+                    followedListID: docID,
+                    tmdbID: item.tmdbID,
+                    mediaType: item.mediaType,
+                    title: item.title,
+                    posterPath: item.posterPath,
+                    sortOrder: index
+                )
+                context.insert(newItem)
+            }
+
             try context.save()
             logger.info("Updated local cache for \(docID): \(snapshot.items.count) items")
         } catch {
-            logger.error("Failed to save snapshot update for \(docID): \(error.localizedDescription)")
+            logger.error("Failed to process snapshot update for \(docID): \(error.localizedDescription)")
         }
     }
 }

@@ -587,11 +587,20 @@ struct SettingsView: View {
             do {
                 // Deactivate sync listeners
                 syncService.deactivate()
-                
+
                 // Push any final local changes before account removal
                 await cloudSync.syncIfNeeded(context: modelContext)
-                
-                // Clean up local followed list data
+
+                // Clear the per-user sync timestamp so a full pull happens if
+                // they sign back in with the same account later.
+                cloudSync.clearSyncTimestamp()
+
+                // Delete account from Firebase FIRST (auth + Firestore cleanup).
+                // This must succeed before we clear local data — if Firebase fails,
+                // the user still has their local library intact.
+                try await authService.deleteAccount()
+
+                // Firebase succeeded — now safe to clean up local data.
                 let followedLists = try modelContext.fetch(FetchDescriptor<FollowedList>())
                 let followedItems = try modelContext.fetch(FetchDescriptor<FollowedListItem>())
                 for item in followedItems {
@@ -600,7 +609,7 @@ struct SettingsView: View {
                 for list in followedLists {
                     modelContext.delete(list)
                 }
-                
+
                 // Clear publish state on local lists (they stay as local lists)
                 let userLists = try modelContext.fetch(FetchDescriptor<UserList>())
                 for list in userLists {
@@ -609,15 +618,7 @@ struct SettingsView: View {
                     list.lastSyncedAt = nil
                 }
                 try modelContext.save()
-                
-                // Clear the per-user sync timestamp so a full pull happens if
-                // they sign back in with the same account later.
-                cloudSync.clearSyncTimestamp()
-                
-                // Delete account from Firebase (Firestore cleanup + auth deletion).
-                // If session is stale, this will re-auth automatically then retry.
-                try await authService.deleteAccount()
-                
+
                 isDeletingAccount = false
             } catch {
                 isDeletingAccount = false

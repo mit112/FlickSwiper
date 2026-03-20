@@ -129,10 +129,11 @@ struct SmartCollectionsSection: View {
         
         for item in items {
             for genreID in item.genreIDs {
-                if genreCounts[genreID] == nil {
-                    genreCounts[genreID] = (1, item.posterPath)
+                if var existing = genreCounts[genreID] {
+                    existing.count += 1
+                    genreCounts[genreID] = existing
                 } else {
-                    genreCounts[genreID]!.count += 1
+                    genreCounts[genreID] = (1, item.posterPath)
                 }
             }
         }
@@ -161,10 +162,11 @@ struct SmartCollectionsSection: View {
         
         for item in items {
             guard let platform = item.sourcePlatform else { continue }
-            if platformCounts[platform] == nil {
-                platformCounts[platform] = (1, item.posterPath)
+            if var existing = platformCounts[platform] {
+                existing.count += 1
+                platformCounts[platform] = existing
             } else {
-                platformCounts[platform]!.count += 1
+                platformCounts[platform] = (1, item.posterPath)
             }
         }
         

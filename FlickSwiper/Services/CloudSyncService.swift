@@ -148,10 +148,20 @@ final class CloudSyncService {
 
     /// Bidirectional sync: pull remote changes, merge, push local changes.
     /// Called on app launch, after sign-in, and periodically while active.
+    ///
+    /// Re-entrancy guard: if a sync is already in progress, this call is a no-op.
+    /// This prevents overlapping syncs from interleaving SwiftData writes
+    /// (e.g., periodic timer firing while an account-switch sync is mid-await).
     func syncIfNeeded(context: ModelContext) async {
         guard let uid = currentUID else {
             logger.info("No authenticated user — skipping cloud sync")
             syncState = .idle
+            return
+        }
+
+        // Re-entrancy guard — prevent overlapping sync operations
+        guard syncState != .syncing else {
+            logger.info("Sync already in progress — skipping")
             return
         }
 
@@ -547,16 +557,26 @@ final class CloudSyncService {
     }
 
     /// Deletes a UserList and all its entries from Firestore.
+    /// Chunked into batches of 400 to stay under Firestore's 500-op limit.
     func deleteUserList(listID: UUID, entryIDs: [UUID]) {
         guard let uid = currentUID else { return }
-        let batch = db.batch()
-        batch.deleteDocument(userListsRef(uid: uid).document(listID.uuidString))
+
+        // Build all delete operations: 1 list doc + N entry docs
+        var allRefs: [DocumentReference] = [userListsRef(uid: uid).document(listID.uuidString)]
         for entryID in entryIDs {
-            batch.deleteDocument(listEntriesRef(uid: uid).document(entryID.uuidString))
+            allRefs.append(listEntriesRef(uid: uid).document(entryID.uuidString))
         }
-        batch.commit { [weak self] error in
-            if let error {
-                self?.logger.error("Failed to delete user list from Firestore: \(error.localizedDescription)")
+
+        // Chunk to stay under Firestore's 500-op batch limit
+        for chunk in allRefs.chunked(into: 400) {
+            let batch = db.batch()
+            for ref in chunk {
+                batch.deleteDocument(ref)
+            }
+            batch.commit { [weak self] error in
+                if let error {
+                    self?.logger.error("Failed to delete user list from Firestore: \(error.localizedDescription)")
+                }
             }
         }
     }

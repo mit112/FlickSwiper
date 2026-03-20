@@ -54,24 +54,27 @@ final class SwipeViewModel {
     var yearFilterMin: Int? = nil {
         didSet {
             if oldValue != yearFilterMin {
+                clearUndoStack() // Clear undo — cards from old filter context are invalid
                 scheduleContentReload()
             }
         }
     }
-    
+
     /// Year filter - maximum year (nil = no filter)
     var yearFilterMax: Int? = nil {
         didSet {
             if oldValue != yearFilterMax {
+                clearUndoStack() // Clear undo — cards from old filter context are invalid
                 scheduleContentReload()
             }
         }
     }
-    
+
     /// Genre filter (nil = no filter)
     var selectedGenre: Genre? = nil {
         didSet {
             if oldValue != selectedGenre {
+                clearUndoStack() // Clear undo — cards from old filter context are invalid
                 scheduleContentReload()
             }
         }
@@ -354,28 +357,28 @@ final class SwipeViewModel {
     @discardableResult
     func swipeRight(item: MediaItem, context: ModelContext) -> SwipedItem {
         let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
-        
+
         let swipedItem: SwipedItem
         let previousDirection: String?
-        
-        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
-            previousDirection = existing.swipeDirection
-            // "seen" is highest rank — always a valid transition
-            existing.swipeDirection = SwipedItem.directionSeen
-            existing.dateSwiped = Date()
-            existing.lastModified = Date()
-            if let sp = sourcePlatform { existing.sourcePlatform = sp }
-            swipedItem = existing
-        } else {
-            previousDirection = nil
-            let newItem = SwipedItem(from: item, direction: .seen)
-            newItem.sourcePlatform = sourcePlatform
-            newItem.ownerUID = cloudSync?.currentUserUID
-            context.insert(newItem)
-            swipedItem = newItem
-        }
-        
+
         do {
+            if let existing = try fetchExisting(uniqueID: item.uniqueID, context: context) {
+                previousDirection = existing.swipeDirection
+                // "seen" is highest rank — always a valid transition
+                existing.swipeDirection = SwipedItem.directionSeen
+                existing.dateSwiped = Date()
+                existing.lastModified = Date()
+                if let sp = sourcePlatform { existing.sourcePlatform = sp }
+                swipedItem = existing
+            } else {
+                previousDirection = nil
+                let newItem = SwipedItem(from: item, direction: .seen)
+                newItem.sourcePlatform = sourcePlatform
+                newItem.ownerUID = cloudSync?.currentUserUID
+                context.insert(newItem)
+                swipedItem = newItem
+            }
+
             try context.save()
             swipedIDs.insert(item.uniqueID)
             pushUndo(UndoEntry(item: item, newDirection: .seen, previousDirection: previousDirection))
@@ -384,6 +387,11 @@ final class SwipeViewModel {
             cloudSync?.pushSwipedItem(swipedItem)
         } catch {
             logger.error("Error saving swipe right: \(error.localizedDescription)")
+            // Fallback: create new item to return even on error
+            let fallback = SwipedItem(from: item, direction: .seen)
+            fallback.sourcePlatform = sourcePlatform
+            fallback.ownerUID = cloudSync?.currentUserUID
+            return fallback
         }
         return swipedItem
     }
@@ -393,35 +401,37 @@ final class SwipeViewModel {
     /// — it does NOT demote the record. The library stays intact.
     func swipeLeft(item: MediaItem, context: ModelContext) {
         let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
-        
-        let previousDirection: String?
-        
-        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
-            previousDirection = existing.swipeDirection
-            // Only demote if transition is allowed (skipped→skipped is a no-op)
-            if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionSkipped) {
-                existing.swipeDirection = SwipedItem.directionSkipped
-                existing.dateSwiped = Date()
-                existing.lastModified = Date()
-                if let sp = sourcePlatform { existing.sourcePlatform = sp }
-            }
-            // If not allowed (e.g. seen→skipped), leave the record untouched
-        } else {
-            previousDirection = nil
-            let swipedItem = SwipedItem(from: item, direction: .skipped)
-            swipedItem.sourcePlatform = sourcePlatform
-            swipedItem.ownerUID = cloudSync?.currentUserUID
-            context.insert(swipedItem)
-        }
-        
+
         do {
+            let previousDirection: String?
+            var savedItem: SwipedItem?
+
+            if let existing = try fetchExisting(uniqueID: item.uniqueID, context: context) {
+                previousDirection = existing.swipeDirection
+                // Only demote if transition is allowed (skipped→skipped is a no-op)
+                if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionSkipped) {
+                    existing.swipeDirection = SwipedItem.directionSkipped
+                    existing.dateSwiped = Date()
+                    existing.lastModified = Date()
+                    if let sp = sourcePlatform { existing.sourcePlatform = sp }
+                    savedItem = existing // Only push if actually modified
+                }
+                // If not allowed (e.g. seen→skipped), don't push unchanged record
+            } else {
+                previousDirection = nil
+                let swipedItem = SwipedItem(from: item, direction: .skipped)
+                swipedItem.sourcePlatform = sourcePlatform
+                swipedItem.ownerUID = cloudSync?.currentUserUID
+                context.insert(swipedItem)
+                savedItem = swipedItem
+            }
+
             try context.save()
             swipedIDs.insert(item.uniqueID)
             pushUndo(UndoEntry(item: item, newDirection: .skipped, previousDirection: previousDirection))
             removeFromQueue(item: item)
             HapticManager.skip()
-            // Push the record (whether updated or newly created)
-            if let saved = fetchExisting(uniqueID: item.uniqueID, context: context) {
+            if let saved = savedItem {
                 cloudSync?.pushSwipedItem(saved)
             }
         } catch {
@@ -433,32 +443,35 @@ final class SwipeViewModel {
     /// Watchlisting a "seen" item is a demotion — silently ignored.
     func swipeUp(item: MediaItem, context: ModelContext) {
         let sourcePlatform = selectedMethod.watchProviderID != nil ? selectedMethod.rawValue : nil
-        
-        let previousDirection: String?
-        
-        if let existing = fetchExisting(uniqueID: item.uniqueID, context: context) {
-            previousDirection = existing.swipeDirection
-            if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionWatchlist) {
-                existing.swipeDirection = SwipedItem.directionWatchlist
-                existing.dateSwiped = Date()
-                existing.lastModified = Date()
-                if let sp = sourcePlatform { existing.sourcePlatform = sp }
-            }
-        } else {
-            previousDirection = nil
-            let swipedItem = SwipedItem(from: item, direction: .watchlist)
-            swipedItem.sourcePlatform = sourcePlatform
-            swipedItem.ownerUID = cloudSync?.currentUserUID
-            context.insert(swipedItem)
-        }
-        
+
         do {
+            let previousDirection: String?
+            var savedItem: SwipedItem?
+
+            if let existing = try fetchExisting(uniqueID: item.uniqueID, context: context) {
+                previousDirection = existing.swipeDirection
+                if Self.isTransitionAllowed(from: existing.swipeDirection, to: SwipedItem.directionWatchlist) {
+                    existing.swipeDirection = SwipedItem.directionWatchlist
+                    existing.dateSwiped = Date()
+                    existing.lastModified = Date()
+                    if let sp = sourcePlatform { existing.sourcePlatform = sp }
+                }
+                savedItem = existing
+            } else {
+                previousDirection = nil
+                let swipedItem = SwipedItem(from: item, direction: .watchlist)
+                swipedItem.sourcePlatform = sourcePlatform
+                swipedItem.ownerUID = cloudSync?.currentUserUID
+                context.insert(swipedItem)
+                savedItem = swipedItem
+            }
+
             try context.save()
             swipedIDs.insert(item.uniqueID)
             pushUndo(UndoEntry(item: item, newDirection: .watchlist, previousDirection: previousDirection))
             removeFromQueue(item: item)
             HapticManager.seen()
-            if let saved = fetchExisting(uniqueID: item.uniqueID, context: context) {
+            if let saved = savedItem {
                 cloudSync?.pushSwipedItem(saved)
             }
         } catch {
@@ -469,12 +482,13 @@ final class SwipeViewModel {
     // MARK: - Lookup
     
     /// Look up an existing SwipedItem by composite unique ID.
-    private func fetchExisting(uniqueID: String, context: ModelContext) -> SwipedItem? {
+    /// Throws on SwiftData errors to prevent silent duplicate creation.
+    private func fetchExisting(uniqueID: String, context: ModelContext) throws -> SwipedItem? {
         let uid = uniqueID
         let descriptor = FetchDescriptor<SwipedItem>(
             predicate: #Predicate<SwipedItem> { $0.uniqueID == uid }
         )
-        return try? context.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
     
     // MARK: - Undo
@@ -491,7 +505,7 @@ final class SwipeViewModel {
         do {
             if let previousDirection = entry.previousDirection {
                 // Record pre-existed — restore its original direction
-                if let existing = fetchExisting(uniqueID: itemUniqueID, context: context) {
+                if let existing = try fetchExisting(uniqueID: itemUniqueID, context: context) {
                     existing.swipeDirection = previousDirection
                     existing.lastModified = Date()
                     try context.save()

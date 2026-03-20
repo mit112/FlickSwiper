@@ -73,6 +73,13 @@ enum Constants {
             let raw = String(path.dropFirst(listPathPrefix.count))
             let docID = raw.trimmingCharacters(in: CharacterSet(charactersIn: "/\\ \t\n"))
             guard !docID.isEmpty else { return nil }
+            // Validate doc ID: only allow alphanumeric, hyphens, and underscores.
+            // Rejects path traversal (../), slashes, and other unexpected characters.
+            // Firestore auto-IDs use this charset; anything else is suspicious.
+            guard docID.count <= 128,
+                  docID.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else {
+                return nil
+            }
             return docID
         }
     }

@@ -594,7 +594,7 @@ struct FilteredGridView: View {
                 try modelContext.save()
                 // Sync to Firestore if this list is published
                 let ctx = modelContext
-                Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+                Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
             } catch {
                 logger.error("Failed to remove item from list: \(error.localizedDescription)")
                 persistenceErrorMessage = "We couldn't update this list. Please try again."
@@ -625,7 +625,7 @@ struct FilteredGridView: View {
             // Sync to Firestore if removing from a published list
             if let list = sourceList {
                 let ctx = modelContext
-                Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+                Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
             }
             selectedItemIDs.removeAll()
             isEditing = false

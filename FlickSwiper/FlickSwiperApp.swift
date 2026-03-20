@@ -28,11 +28,11 @@ struct FlickSwiperApp: App {
     
     /// Indicates the persistent store had to be deleted and recreated due to corruption.
     /// ContentView observes this to show a one-time alert informing the user.
-    static var databaseWasReset = false
-    
+    nonisolated(unsafe) static var databaseWasReset = false
+
     /// True when even store deletion failed and we fell back to an in-memory container.
     /// Data will not persist across launches in this state.
-    static var isUsingInMemoryFallback = false
+    nonisolated(unsafe) static var isUsingInMemoryFallback = false
     
     init() {
         // Initialize Firebase — must be called before any Firebase service

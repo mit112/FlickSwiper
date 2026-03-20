@@ -45,7 +45,7 @@ struct AddToListSheet: View {
                         cloudSync.pushListEntry(entry)
                         // Sync to Firestore if this list is published
                         let ctx = modelContext
-                        Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+                        Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
                         newListName = ""
                     } catch {
                         logger.error("Failed to create list from AddToListSheet: \(error.localizedDescription)")
@@ -165,7 +165,7 @@ struct AddToListSheet: View {
             cloudSync.pushUserList(list)
             // Sync to Firestore if this list is published
             let ctx = modelContext
-            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+            Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
         } catch {
             logger.error("Failed to toggle list membership: \(error.localizedDescription)")
             persistenceErrorMessage = "We couldn't update this list. Please try again."

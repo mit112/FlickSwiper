@@ -91,7 +91,7 @@ struct AddSelectedToListSheet: View {
             cloudSync.pushUserList(list)
             // Sync to Firestore if this list is published
             let ctx = modelContext
-            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: list) }
+            Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: list) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
             return true
         } catch {
             logger.error("Failed to add selected items to list: \(error.localizedDescription)")

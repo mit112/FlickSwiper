@@ -252,54 +252,44 @@ final class AuthService: NSObject {
     
     // MARK: - Account Deletion
     
-    /// Deletes the user's account from Firebase Auth and cleans up Firestore data.
-    /// Apple requires apps offering Sign in with Apple to also provide account deletion.
+    /// Deletes the user's account from Firebase Auth and cleans up ALL Firestore data.
+    /// Apple requires apps offering Sign in with Apple to also provide account deletion
+    /// (Guideline 5.1.1). GDPR Article 17 requires erasure of personal data on request.
     ///
-    /// If the Firebase session is stale, the user is prompted to re-authenticate
+    /// If the Firebase session is stale, the user is re-authenticated
     /// (Apple/Google sign-in) before retrying. If they cancel, throws `AuthError.cancelled`.
     ///
     /// Cleanup order:
-    /// 1. Set all user's publishedLists to isActive = false
-    /// 2. Delete all user's follows
-    /// 3. Delete user's Firestore profile
-    /// 4. Revoke provider token (Google disconnect)
-    /// 5. Delete Firebase Auth account (re-auth if needed)
+    /// 1. Delete Firebase Auth account first (re-auth if stale session)
+    /// 2. Set all user's publishedLists to isActive = false
+    /// 3. Delete all user's follows
+    /// 4. Delete user's private subcollections (swipedItems, userLists, listEntries)
+    /// 5. Delete user's Firestore profile
+    /// 6. Revoke provider token (Google disconnect)
     func deleteAccount() async throws {
         guard let user = currentUser else {
             throw AuthError.notSignedIn
         }
-        
+
         isLoading = true
         defer { isLoading = false }
-        
+
         let uid = user.uid
-        
-        // 1. Deactivate all published lists (soft delete so followers see "no longer available")
-        let listsSnapshot = try await db.collection(Constants.Firestore.publishedListsCollection)
-            .whereField("ownerUID", isEqualTo: uid)
-            .getDocuments()
-        
-        let batch = db.batch()
-        for doc in listsSnapshot.documents {
-            batch.updateData(["isActive": false], forDocument: doc.reference)
+
+        // 1. Delete Firebase Auth account FIRST.
+        //    This requires a fresh session. If stale, re-authenticate then retry.
+        //    Doing this first ensures the auth record is always deleted — if subsequent
+        //    Firestore cleanup fails, the user cannot sign in again with orphaned data.
+        do {
+            try await user.delete()
+            logger.info("Firebase Auth account deleted for UID: \(uid)")
+        } catch let error as NSError where error.code == AuthErrorCode.requiresRecentLogin.rawValue {
+            logger.info("Session stale — re-authentication required for account deletion")
+            // Re-authenticate based on the provider, then retry deletion
+            try await reauthenticateAndDelete(user: user)
         }
-        
-        // 2. Delete all follows by this user
-        let followsSnapshot = try await db.collection(Constants.Firestore.followsCollection)
-            .whereField("followerUID", isEqualTo: uid)
-            .getDocuments()
-        
-        for doc in followsSnapshot.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        
-        // 3. Delete user profile document
-        batch.deleteDocument(db.collection(Constants.Firestore.usersCollection).document(uid))
-        
-        try await batch.commit()
-        logger.info("Firestore cleanup complete for UID: \(uid)")
-        
-        // 4. Provider-specific cleanup before account deletion
+
+        // 2. Provider-specific cleanup
         if user.providerData.contains(where: { $0.providerID == "google.com" }) {
             do {
                 try await GIDSignIn.sharedInstance.disconnect()
@@ -308,19 +298,123 @@ final class AuthService: NSObject {
                 logger.warning("Google disconnect failed: \(error.localizedDescription)")
             }
         }
-        
-        // 5. Delete Firebase Auth account.
-        //    If the session is fresh, this removes the auth record entirely.
-        //    If stale (requiresRecentLogin), we sign out instead — the auth record
-        //    becomes an orphan with no Firestore data, which is harmless.
-        //    Users don't care about the auth record; they care about their data being gone.
-        do {
-            try await user.delete()
-            logger.info("Firebase Auth account deleted for UID: \(uid)")
-        } catch let error as NSError where error.code == AuthErrorCode.requiresRecentLogin.rawValue {
-            logger.info("Session stale — signing out instead (Firestore data already cleaned)")
+
+        // 3. Deactivate all published lists (soft delete so followers see "no longer available")
+        let listsSnapshot = try await db.collection(Constants.Firestore.publishedListsCollection)
+            .whereField("ownerUID", isEqualTo: uid)
+            .getDocuments()
+
+        let batch = db.batch()
+        for doc in listsSnapshot.documents {
+            batch.updateData(["isActive": false], forDocument: doc.reference)
+        }
+
+        // 4. Delete all follows by this user
+        let followsSnapshot = try await db.collection(Constants.Firestore.followsCollection)
+            .whereField("followerUID", isEqualTo: uid)
+            .getDocuments()
+
+        for doc in followsSnapshot.documents {
+            batch.deleteDocument(doc.reference)
+        }
+
+        // 5. Delete user profile document
+        batch.deleteDocument(db.collection(Constants.Firestore.usersCollection).document(uid))
+
+        try await batch.commit()
+        logger.info("Firestore public data cleanup complete for UID: \(uid)")
+
+        // 6. Delete private subcollections (swipedItems, userLists, listEntries).
+        //    Firestore does not cascade-delete subcollections — we must delete each doc.
+        //    These contain personal data (watch history, ratings, lists) — GDPR requires erasure.
+        try await deleteSubcollection(db.collection("users").document(uid).collection("swipedItems"))
+        try await deleteSubcollection(db.collection("users").document(uid).collection("userLists"))
+        try await deleteSubcollection(db.collection("users").document(uid).collection("listEntries"))
+        logger.info("Private subcollections deleted for UID: \(uid)")
+    }
+
+    /// Re-authenticates the user with their original provider, then deletes the account.
+    /// Called when `user.delete()` fails with `requiresRecentLogin`.
+    private func reauthenticateAndDelete(user: FirebaseAuth.User) async throws {
+        let providerID = user.providerData.first?.providerID
+
+        if providerID == "apple.com" {
+            // Re-authenticate with Apple
+            let nonce = randomNonceString()
+            currentNonce = nonce
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = sha256(nonce)
+
+            let authorization = try await performAppleAuthorization(request: request)
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let appleIDToken = appleIDCredential.identityToken,
+                  let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                throw AuthError.missingIdentityToken
+            }
+
+            let credential = OAuthProvider.appleCredential(
+                withIDToken: idTokenString,
+                rawNonce: nonce,
+                fullName: appleIDCredential.fullName
+            )
+            try await user.reauthenticate(with: credential)
+        } else if providerID == "google.com" {
+            // Re-authenticate with Google
+            guard let clientID = FirebaseApp.app()?.options.clientID else {
+                throw AuthError.missingGoogleClientID
+            }
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootViewController = windowScene.windows.first?.rootViewController else {
+                throw AuthError.noRootViewController
+            }
+            var presentingVC = rootViewController
+            while let presented = presentingVC.presentedViewController {
+                presentingVC = presented
+            }
+
+            let config = GIDConfiguration(clientID: clientID)
+            GIDSignIn.sharedInstance.configuration = config
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presentingVC)
+
+            guard let idToken = result.user.idToken?.tokenString else {
+                throw AuthError.missingIdentityToken
+            }
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: result.user.accessToken.tokenString
+            )
+            try await user.reauthenticate(with: credential)
+        } else {
+            // Unknown provider — sign out as last resort
+            logger.warning("Unknown provider \(providerID ?? "nil") — signing out instead of re-auth")
             GIDSignIn.sharedInstance.signOut()
             try? Auth.auth().signOut()
+            return
+        }
+
+        // Re-auth succeeded — retry deletion
+        try await user.delete()
+        logger.info("Firebase Auth account deleted after re-authentication")
+    }
+
+    /// Deletes all documents in a Firestore subcollection, chunked to stay under batch limits.
+    private func deleteSubcollection(_ ref: CollectionReference) async throws {
+        let snapshot = try await ref.getDocuments()
+        guard !snapshot.documents.isEmpty else { return }
+
+        // Chunk into batches of 400 (under Firestore's 500-op limit)
+        let docs = snapshot.documents
+        let chunkSize = 400
+        for start in stride(from: 0, to: docs.count, by: chunkSize) {
+            let end = min(start + chunkSize, docs.count)
+            let chunk = docs[start..<end]
+            let batch = db.batch()
+            for doc in chunk {
+                batch.deleteDocument(doc.reference)
+            }
+            try await batch.commit()
         }
     }
     

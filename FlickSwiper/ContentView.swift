@@ -148,7 +148,9 @@ struct ContentView: View {
                     // If local library is empty but we have a stale sync timestamp
                     // (e.g. re-sign-in after account deletion), force a full pull
                     // so incremental sync doesn't skip all existing Firestore data.
-                    let localCount = (try? modelContext.fetchCount(FetchDescriptor<SwipedItem>())) ?? 0
+                    // Only clear sync timestamp if we're certain the library is empty.
+                    // Use -1 as error sentinel so a SwiftData error doesn't trigger a full pull.
+                    let localCount = (try? modelContext.fetchCount(FetchDescriptor<SwipedItem>())) ?? -1
                     if localCount == 0 {
                         cloudSync.clearSyncTimestamp()
                     }

@@ -167,7 +167,7 @@ struct BulkAddToListView: View {
             // Sync to Firestore if this list is published
             let ctx = modelContext
             let syncList = list
-            Task { try? await ListPublisher(context: ctx).syncIfPublished(list: syncList) }
+            Task { do { try await ListPublisher(context: ctx).syncIfPublished(list: syncList) } catch { Logger(subsystem: "com.flickswiper.app", category: "ListSync").error("syncIfPublished failed: \(error.localizedDescription)") } }
             return true
         } catch {
             logger.error("Failed to apply bulk list changes: \(error.localizedDescription)")

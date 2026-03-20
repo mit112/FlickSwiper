@@ -261,7 +261,7 @@ actor TMDBService: MediaServiceProtocol {
             if method == .upcoming {
                 let today = todayString()
                 // Only override gte if yearMin isn't already later than today
-                if movieParams["primary_release_date.gte"] == nil || movieParams["primary_release_date.gte"]! < today {
+                if movieParams["primary_release_date.gte"].map({ $0 < today }) ?? true {
                     movieParams["primary_release_date.gte"] = today
                 }
             }
@@ -281,7 +281,7 @@ actor TMDBService: MediaServiceProtocol {
             }
             if method == .upcoming {
                 let today = todayString()
-                if tvParams["first_air_date.gte"] == nil || tvParams["first_air_date.gte"]! < today {
+                if tvParams["first_air_date.gte"].map({ $0 < today }) ?? true {
                     tvParams["first_air_date.gte"] = today
                 }
             }
