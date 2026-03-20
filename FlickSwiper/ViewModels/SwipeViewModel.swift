@@ -85,11 +85,6 @@ final class SwipeViewModel {
         selectedGenre != nil
     }
     
-    /// Clear genre filter
-    func clearGenreFilter() {
-        selectedGenre = nil
-    }
-    
     /// Whether to include previously swiped items (show them again)
     /// Reads from UserDefaults (written by @AppStorage in SettingsView)
     var includeSwipedItems: Bool = UserDefaults.standard.bool(forKey: Constants.StorageKeys.includeSwipedItems)
@@ -128,12 +123,6 @@ final class SwipeViewModel {
         yearFilterMin != nil || yearFilterMax != nil
     }
     
-    /// Clear year filter
-    func clearYearFilter() {
-        yearFilterMin = nil
-        yearFilterMax = nil
-    }
-    
     /// Loading state
     private(set) var isLoading: Bool = false
     
@@ -146,9 +135,6 @@ final class SwipeViewModel {
     
     /// Whether we've reached the end of available content
     private(set) var hasReachedEnd: Bool = false
-    
-    /// Count of swiped items (for display)
-    var swipedCount: Int { swipedIDs.count }
     
     // MARK: - Undo Support
     
@@ -605,12 +591,7 @@ final class SwipeViewModel {
     var visibleCards: [MediaItem] {
         Array(mediaItems.prefix(3))
     }
-    
-    /// Get the current top card
-    var currentCard: MediaItem? {
-        mediaItems.first
-    }
-    
+
     // MARK: - Private Methods
     
     /// Filter items based on all active filters (swiped, year range)
@@ -648,15 +629,6 @@ final class SwipeViewModel {
     private func removeFromQueue(item: MediaItem) {
         mediaItems.removeAll { $0.uniqueID == item.uniqueID }
         loadMoreIfNeeded()
-    }
-    
-    /// Public helper to remove a card from the stack and mark it as swiped
-    /// without creating a new SwipedItem record. Useful for flows like
-    /// watchlist bookmarking where the model has already been saved.
-    func removeCardFromStack(item: MediaItem) {
-        // Ensure this item's ID is treated as swiped so it won't reappear
-        swipedIDs.insert(item.uniqueID)
-        removeFromQueue(item: item)
     }
     
     /// Save selected discovery method to UserDefaults

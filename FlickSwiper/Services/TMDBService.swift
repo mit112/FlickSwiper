@@ -587,18 +587,6 @@ actor TMDBService: MediaServiceProtocol {
             throw TMDBError.decodingError(error)
         }
     }
-    
-    // MARK: - Image URLs
-    
-    /// Get full URL for poster image
-    static func posterURL(path: String?, size: PosterSize = .w500) -> URL? {
-        guard let path = path else { return nil }
-        return URL(string: "https://image.tmdb.org/t/p/\(size.rawValue)\(path)")
-    }
-    
-    enum PosterSize: String {
-        case w92, w154, w185, w342, w500, w780, original
-    }
 }
 
 // MARK: - Errors

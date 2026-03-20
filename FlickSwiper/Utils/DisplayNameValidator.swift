@@ -9,8 +9,6 @@ import os
 /// - Must not contain terms from the bundled offensive_terms.json blocklist
 /// - Uniqueness is NOT enforced (UIDs are the real identity)
 nonisolated struct DisplayNameValidator {
-    private let logger = Logger(subsystem: "com.flickswiper.app", category: "DisplayNameValidator")
-    
     /// Minimum allowed character count after trimming
     static let minLength = 2
     /// Maximum allowed character count after trimming

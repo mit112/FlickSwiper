@@ -3,20 +3,11 @@ import Foundation
 /// App-wide constants
 enum Constants {
     
-    // MARK: - API
-    
-    enum API {
-        static let tmdbBaseURL = "https://api.themoviedb.org/3"
-        static let tmdbImageBaseURL = "https://image.tmdb.org/t/p"
-        static let defaultWatchRegion = "US"
-    }
-    
     // MARK: - Animation
-    
+
     enum Animation {
         static let swipeThreshold: CGFloat = 100
         static let maxRotation: Double = 12
-        static let cardStackCount: Int = 3
     }
     
     // MARK: - Storage Keys
@@ -27,14 +18,6 @@ enum Constants {
         static let hasSeenSwipeTutorial = "hasSeenSwipeTutorial"
         static let includeSwipedItems = "includeSwipedItems"
         static let ratingDisplayOption = "ratingDisplayOption"
-    }
-    
-    // MARK: - UI
-    
-    enum UI {
-        static let cardCornerRadius: CGFloat = 20
-        static let gridSpacing: CGFloat = 12
-        static let prefetchThreshold: Int = 5
     }
     
     // MARK: - URLs

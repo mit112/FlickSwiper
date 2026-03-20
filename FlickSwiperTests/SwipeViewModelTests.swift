@@ -55,12 +55,12 @@ final class SwipeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.visibleCards.count, 2)
     }
     
-    func testCurrentCardIsFirstItem() async {
+    func testTopCardIsFirstItem() async {
         let items = MockMediaService.createMockItems(count: 5)
         await mockService.setMockItems(items)
         await viewModel.loadInitialContent(context: context)
-        
-        XCTAssertEqual(viewModel.currentCard?.id, items.first?.id)
+
+        XCTAssertEqual(viewModel.mediaItems.first?.id, items.first?.id)
     }
     
     // MARK: - Swipe Right (Seen)
@@ -499,14 +499,4 @@ final class SwipeViewModelTests: XCTestCase {
     
     // MARK: - RemoveCardFromStack
     
-    func testRemoveCardFromStackAddsToSwipedIDs() async {
-        let items = MockMediaService.createMockItems(count: 5)
-        await mockService.setMockItems(items)
-        await viewModel.loadInitialContent(context: context)
-        
-        let firstItem = viewModel.mediaItems[0]
-        viewModel.removeCardFromStack(item: firstItem)
-        
-        XCTAssertFalse(viewModel.mediaItems.contains(where: { $0.uniqueID == firstItem.uniqueID }))
-    }
 }

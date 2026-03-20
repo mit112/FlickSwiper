@@ -14,8 +14,6 @@ struct FlickSwiperHomeView: View {
            sort: \SwipedItem.dateSwiped, order: .reverse)
     private var watchlistItems: [SwipedItem]
     
-    @Query(sort: \UserList.sortOrder) private var userLists: [UserList]
-    @Query private var allEntries: [ListEntry]
     @Environment(\.modelContext) private var modelContext
     @Environment(AuthService.self) private var authService
     @Environment(FollowedListSyncService.self) private var syncService
