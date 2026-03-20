@@ -135,24 +135,21 @@ describe("User Profiles", () => {
     await assertSucceeds(db.doc("users/alice").delete());
   });
 
-  test("⚠️ RISK: any authed user can READ any profile (social graph)", async () => {
+  test("✅ FIXED (S6): other users CANNOT read another user's profile", async () => {
     await seedAdmin(db =>
       db.doc("users/alice").set({ displayName: "Alice", uid: "alice", email: "alice@test.com" })
     );
 
-    // Bob can read Alice's profile — including any PII stored there
-    const snapshot = await assertSucceeds(
-      authed("bob").doc("users/alice").get()
+    // Bob cannot read Alice's profile — owner-only reads enforced
+    await assertFails(authed("bob").doc("users/alice").get());
+  });
+
+  test("owner can read their own profile", async () => {
+    await seedAdmin(db =>
+      db.doc("users/alice").set({ displayName: "Alice", uid: "alice" })
     );
 
-    const data = snapshot.data();
-    console.log(
-      "\n  ⚠️  Fields exposed to other users:",
-      Object.keys(data).join(", ")
-    );
-    if (data.email) {
-      console.log("  🔴 EMAIL IS EXPOSED to all authenticated users!");
-    }
+    await assertSucceeds(authed("alice").doc("users/alice").get());
   });
 
   test("cannot create profile for another user", async () => {
@@ -508,7 +505,19 @@ describe("Published Lists — Ownership Transfer Attack", () => {
 // ════════════════════════════════════════════════════════════
 
 describe("Follows — Access Control", () => {
+  // Seed a published list for follow tests that need exists() to pass
+  const seedList = async () => {
+    await seedAdmin(db => db.doc("publishedLists/list1").set({
+      ownerUID: "owner",
+      name: "Test List",
+      items: [],
+      ownerDisplayName: "Owner",
+      isActive: true,
+    }));
+  };
+
   test("user can create a follow for themselves", async () => {
+    await seedList();
     await assertSucceeds(
       authed("alice").collection("follows").add({
         followerUID: "alice",
@@ -519,6 +528,7 @@ describe("Follows — Access Control", () => {
   });
 
   test("cannot create follow impersonating another user", async () => {
+    await seedList();
     await assertFails(
       authed("alice").collection("follows").add({
         followerUID: "bob", // alice pretending to be bob
@@ -583,7 +593,7 @@ describe("Follows — Access Control", () => {
 });
 
 describe("Follows — Enumeration & Spam", () => {
-  test("⚠️ RISK: any authed user can read ALL follow records", async () => {
+  test("✅ FIXED (S5): users can only read their OWN follow records", async () => {
     await seedAdmin(async (db) => {
       await db.doc("follows/f1").set({
         followerUID: "alice",
@@ -597,24 +607,46 @@ describe("Follows — Enumeration & Spam", () => {
       });
     });
 
-    const snapshot = await assertSucceeds(
-      authed("charlie").collection("follows").get()
-    );
+    // Charlie cannot read other users' follows
+    await assertFails(authed("charlie").doc("follows/f1").get());
+    await assertFails(authed("charlie").doc("follows/f2").get());
 
-    console.log(
-      `\n  ⚠️  Charlie can see ${snapshot.size} follow records (full social graph exposed)`
-    );
-    console.log(
-      "     Accepted risk for now. If user base grows, move follows to subcollections."
+    // Alice can read her own follow
+    await assertSucceeds(authed("alice").doc("follows/f1").get());
+
+    // Bob can read his own follow
+    await assertSucceeds(authed("bob").doc("follows/f2").get());
+  });
+
+  test("✅ FIXED (RF-07): cannot follow a nonexistent list", async () => {
+    await assertFails(
+      authed("alice").collection("follows").add({
+        followerUID: "alice",
+        listID: "this_list_does_not_exist",
+        followedAt: new Date(),
+      })
     );
   });
 
-  test("⚠️ RISK: user can mass-create follows (no rate limit in rules)", async () => {
+  test("⚠️ RISK: user can mass-create follows for existing lists (no rate limit)", async () => {
+    // Seed 10 published lists for the spammer to follow
+    await seedAdmin(async (db) => {
+      for (let i = 0; i < 10; i++) {
+        await db.doc(`publishedLists/list_${i}`).set({
+          ownerUID: "owner",
+          name: `List ${i}`,
+          items: [],
+          ownerDisplayName: "Owner",
+          isActive: true,
+        });
+      }
+    });
+
     const db = authed("spammer");
     const batch = db.batch();
 
-    // Create 50 follow records in a batch
-    for (let i = 0; i < 50; i++) {
+    // Create 10 follow records in a batch (all pointing to real lists)
+    for (let i = 0; i < 10; i++) {
       batch.set(db.collection("follows").doc(`spam_${i}`), {
         followerUID: "spammer",
         listID: `list_${i}`,
@@ -624,7 +656,7 @@ describe("Follows — Enumeration & Spam", () => {
 
     await assertSucceeds(batch.commit());
     console.log(
-      "\n  ⚠️  50 follows created in one batch. No server-side rate limit."
+      "\n  ⚠️  10 follows created in one batch. No server-side rate limit."
     );
     console.log(
       "     Mitigation: Firebase App Check + Cloud Function rate limiting."
@@ -1022,6 +1054,10 @@ afterAll(() => {
   console.log("  ✅ FIXED VULNERABILITIES (verified by tests):");
   console.log("     VULN-FS-003: name.size() <= 200, items.size() <= 500 enforced");
   console.log("     VULN-FS-004: ownerUID immutable on update");
+  console.log("     S5: Follow reads restricted to own follows only");
+  console.log("     S6: User profile reads restricted to owner only");
+  console.log("     RF-04: Subcollection docs capped at 10KB");
+  console.log("     RF-07: Follow create requires list to exist (exists() check)");
   console.log("     MT-01: isActive type validated on update (bool only)");
   console.log("     MT-02: description validated (string, <= 2000 chars)");
   console.log("     MT-03/04: ownerDisplayName size-capped on create+update");
@@ -1029,11 +1065,8 @@ afterAll(() => {
   console.log("     MT-06: followedAt must be a timestamp");
   console.log("");
   console.log("  ⚠️  ACCEPTED RISKS (document and monitor):");
-  console.log("     - Any authed user can read all user profiles (MT-10)");
-  console.log("     - Any authed user can enumerate all follow records");
   console.log("     - No server-side rate limiting on writes");
-  console.log("     - Subcollection writes have no schema validation");
-  console.log("     - Subcollection docs have no size cap (MT-08)");
+  console.log("     - Subcollection writes have no field-level schema validation");
   console.log("     - displayNameLowercase not enforced (MT-11)");
   console.log("     - User profile accepts arbitrary fields (MT-10)");
   console.log("");

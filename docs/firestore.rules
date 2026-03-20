@@ -20,12 +20,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------------------------------------------------------
-    // Users: any authenticated user can read any profile
-    // (needed to display owner names on followed lists).
-    // Only the profile owner can write their own document.
+    // Users: only the profile owner can read/write their own doc.
+    // Owner names on followed lists are denormalized into
+    // publishedLists.ownerDisplayName — no cross-user profile
+    // reads needed.
     // ---------------------------------------------------------
     match /users/{uid} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+                  && request.auth.uid == uid;
       allow create: if request.auth != null
                     && request.auth.uid == uid;
       allow update: if request.auth != null
@@ -36,21 +38,32 @@ service cloud.firestore {
       // ---------------------------------------------------
       // Cloud Sync Subcollections
       // Only the owning user can read/write their own data.
+      // 10KB size cap blocks storage exhaustion attacks while
+      // leaving headroom for legitimate docs (~3KB max).
       // ---------------------------------------------------
 
       match /swipedItems/{itemId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == uid;
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+        allow write: if request.auth != null
+                     && request.auth.uid == uid
+                     && request.resource.size() < 10240;
       }
 
       match /userLists/{listId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == uid;
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+        allow write: if request.auth != null
+                     && request.auth.uid == uid
+                     && request.resource.size() < 10240;
       }
 
       match /listEntries/{entryId} {
-        allow read, write: if request.auth != null
-                           && request.auth.uid == uid;
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+        allow write: if request.auth != null
+                     && request.auth.uid == uid
+                     && request.resource.size() < 10240;
       }
     }
 
@@ -93,19 +106,21 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------
-    // Follows: any authenticated user can read
-    // (needed for checking "am I following this list?").
-    // Users can only create follows for themselves.
+    // Follows: users can only read their own follows.
+    // Users can only create follows for themselves, and only
+    // for lists that actually exist.
     // Users can only delete their own follows.
     // No updates allowed (follows are immutable — create or delete).
     // ---------------------------------------------------------
     match /follows/{followId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+                  && resource.data.followerUID == request.auth.uid;
 
       allow create: if request.auth != null
                     && request.resource.data.followerUID == request.auth.uid
                     && request.resource.data.listID is string
-                    && request.resource.data.followedAt is timestamp;
+                    && request.resource.data.followedAt is timestamp
+                    && exists(/databases/$(database)/documents/publishedLists/$(request.resource.data.listID));
 
       allow delete: if request.auth != null
                     && resource.data.followerUID == request.auth.uid;
