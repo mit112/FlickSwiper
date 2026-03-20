@@ -45,7 +45,7 @@ enum Constants {
         /// Base URL for Universal Links (shared list deep links)
         static let deepLinkBase = "https://mit112.github.io/FlickSwiper"
         /// App Store URL for fallback page redirect (update with real ID after approval)
-        static let appStore = URL(string: "https://apps.apple.com/app/flickswiper/id0000000000")!
+        static let appStore = URL(string: "https://apps.apple.com/us/app/flickswiper/id6758966666")!
     }
     
     // MARK: - Firestore
